@@ -2,6 +2,7 @@ package main
 
 import (
 	"crypto/tls"
+	"encoding/hex"
 	"flag"
 	"fmt"
 	"io"
@@ -59,6 +60,16 @@ func aux_list_printer(body io.ReadCloser) {
 	}
 }
 
+func aux_hash_printer(body io.ReadCloser) {
+	text, err := io.ReadAll(body)
+	if (err != nil && debugmode) || force_err {
+		log.Fatal("readResponseBody: ", err)
+		return
+	}
+	hexHash := hex.EncodeToString(text)
+	fmt.Println(hexHash)
+}
+
 func processGetPeersResponse(resp *http.Response) {
 	aux_list_printer(resp.Body)
 	resp.Body.Close()
@@ -90,7 +101,7 @@ func processGetPeerRootHashResponse(resp *http.Response) {
 	if resp.StatusCode == http.StatusNoContent { // 204
 		fmt.Println(resp.Status)
 	}
-	aux_list_printer(resp.Body)
+	aux_hash_printer(resp.Body)
 	resp.Body.Close()
 }
 
@@ -153,7 +164,7 @@ func main() {
 		}
 	}
 	if *getPeerRootHashFlag != "" {
-		req := buildGetPeerAddressesRequest(*getPeerRootHashFlag)
+		req := buildGetPeerRootHashRequest(*getPeerRootHashFlag)
 		if req != nil {
 			resp, err := client.Do(req)
 			if err != nil {
