@@ -54,8 +54,8 @@ func aux_list_printer(body io.ReadCloser) {
 		log.Fatal("readResponseBody: ", err)
 		return
 	}
-	for _, lines := range strings.Split(string(text[:]), "\n") {
-		log.Printf("metric: %s", lines)
+	for _, line := range strings.Split(string(text[:]), "\n") {
+		fmt.Println("[REQBODY] " + line)
 	}
 }
 
