@@ -11,10 +11,12 @@ import (
 	"time"
 )
 
+var serv_url = "https://jch.irif.fr:8443"
+
 var debugmode = true  // this allows the processing of errors
 var force_err = false // this forces error-handling routines to happen, even if nothing failed
 
-func buildGetPeersRequest(serv_url string) *http.Request {
+func buildGetPeersRequest() *http.Request {
 	req, err := http.NewRequest("GET", serv_url+"/peers", nil)
 	if (err != nil && debugmode) || force_err {
 		log.Fatal("http.NewRequest: ", err)
@@ -22,24 +24,24 @@ func buildGetPeersRequest(serv_url string) *http.Request {
 	return req
 }
 
-func buildGetPeerAddressesRequest(serv_url string, peer_id int) *http.Request {
-	req, err := http.NewRequest("GET", serv_url+"/peers/"+strconv.Itoa(peer_id)+"/addresses", nil)
+func buildGetPeerAddressesRequest(peer_name string) *http.Request {
+	req, err := http.NewRequest("GET", serv_url+"/peers/"+peer_name+"/addresses", nil)
 	if (err != nil && debugmode) || force_err {
 		log.Fatal("http.NewRequest: ", err)
 	}
 	return req
 }
 
-func buildGetPeerPubkeyRequest(serv_url string, peer_id int) *http.Request {
-	req, err := http.NewRequest("GET", serv_url+"/peers/"+strconv.Itoa(peer_id)+"/key", nil)
+func buildGetPeerPubkeyRequest(peer_name string) *http.Request {
+	req, err := http.NewRequest("GET", serv_url+"/peers/"+peer_name+"/key", nil)
 	if (err != nil && debugmode) || force_err {
 		log.Fatal("http.NewRequest: ", err)
 	}
 	return req
 }
 
-func buildGetPeerRootHashRequest(serv_url string, peer_id int) *http.Request {
-	req, err := http.NewRequest("GET", serv_url+"/peers/"+strconv.Itoa(peer_id)+"/root", nil)
+func buildGetPeerRootHashRequest(peer_name string) *http.Request {
+	req, err := http.NewRequest("GET", serv_url+"/peers/"+peer_name+"/root", nil)
 	if (err != nil && debugmode) || force_err {
 		log.Fatal("http.NewRequest: ", err)
 	}
@@ -99,14 +101,13 @@ func main() {
 		Transport: transport,
 		Timeout:   50 * time.Second,
 	}
-	servAddressFlag := flag.String("server", "localhost", "the IP address of the central REST server")
-	listPeersFlag := flag.Bool("list", true, "use to ask for the peer list")
-	getPeerAddressesFlag := flag.Int("getAddresses", -1, "specify a peer ID to get the addresses from")
-	getPeerKeyFlag := flag.Int("getKey", -1, "specify a peer ID to get the pubkey from")
-	getPeerRootHashFlag := flag.Int("getRootHash", -1, "specify a peer ID to get the root hash from")
+	listPeersFlag := flag.Bool("list", false, "use to ask for the peer list")
+	getPeerAddressesFlag := flag.String("getAddresses", "", "specify a peer ID to get the addresses from")
+	getPeerKeyFlag := flag.String("getKey", "", "specify a peer ID to get the pubkey from")
+	getPeerRootHashFlag := flag.String("getRootHash", "", "specify a peer ID to get the root hash from")
 	flag.Parse()
 	if *listPeersFlag {
-		req := buildGetPeersRequest(*servAddressFlag)
+		req := buildGetPeersRequest()
 		if req != nil {
 			resp, err := client.Do(req)
 			if err != nil {
@@ -115,8 +116,8 @@ func main() {
 			processGetPeersResponse(resp)
 		}
 	}
-	if *getPeerAddressesFlag != -1 {
-		req := buildGetPeerAddressesRequest(*servAddressFlag, *getPeerAddressesFlag)
+	if *getPeerAddressesFlag != "" {
+		req := buildGetPeerAddressesRequest(*getPeerAddressesFlag)
 		if req != nil {
 			resp, err := client.Do(req)
 			if err != nil {
@@ -125,8 +126,8 @@ func main() {
 			processGetPeerAddressesResponse(resp)
 		}
 	}
-	if *getPeerKeyFlag != -1 {
-		req := buildGetPeerPubkeyRequest(*servAddressFlag, *getPeerKeyFlag)
+	if *getPeerKeyFlag != "" {
+		req := buildGetPeerPubkeyRequest(*getPeerKeyFlag)
 		if req != nil {
 			resp, err := client.Do(req)
 			if err != nil {
@@ -135,8 +136,8 @@ func main() {
 			processGetPeerKeyResponse(resp)
 		}
 	}
-	if *getPeerRootHashFlag != -1 {
-		req := buildGetPeerAddressesRequest(*servAddressFlag, *getPeerRootHashFlag)
+	if *getPeerRootHashFlag != "" {
+		req := buildGetPeerAddressesRequest(*getPeerRootHashFlag)
 		if req != nil {
 			resp, err := client.Do(req)
 			if err != nil {
