@@ -113,7 +113,7 @@ func main() {
 	}
 	if *helpFlag {
 		fmt.Println("Usage : go run client.go [options]")
-		fmt.Println("Several options can be used, but the help option will override any other and is enabled by default.")
+		fmt.Println("Several options can be used, but the help option will override any other and is enabled by default if none is provided.")
 		fmt.Println("Options :")
 		fmt.Println("-list / -list=true : fetches and displays a list of known peers from the server. Disabled by default.")
 		fmt.Println("-help / -help=true : displays this help and exits. Enabled by default. Overrides any other option.")
