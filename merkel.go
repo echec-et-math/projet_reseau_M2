@@ -9,6 +9,13 @@ import (
 	"os"
 )
 
+type P2PRequest struct {
+	Id        []byte // 4 bytes
+	Type      byte
+	Length    []byte // 2 bytes
+	Body      []byte // length bytes
+	Signature []byte
+}
 type Node struct {
 	Directory bool //directory or not
 	Big       bool // a chunk or a big file, if directory is true then we ignore it
