@@ -1,11 +1,12 @@
 package main
- 
+
 import (
-	"crypto/sha256"
-	"fmt"
-	"os"
 	"bufio"
+	"crypto/sha256"
+	"encoding/binary"
+	"fmt"
 	"io"
+	"os"
 )
 
 type Node struct{
