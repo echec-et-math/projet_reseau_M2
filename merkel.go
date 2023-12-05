@@ -126,7 +126,27 @@ func buildNoOpRequest() *P2PRequest {
 }
 
 
+
+func buildErrorMessage(msg string) *P2PRequest {
+	buf := make([]byte, 2)
+	binary.LittleEndian.PutUint16(buf, uint16(len(msg)))
+	return &P2PRequest{
+		Type:   1,
+		Length: buf,
+		Body:   []byte(msg),
+	}
 }
+
+func buildErrorReply(msg string) *P2PRequest {
+	buf := make([]byte, 2)
+	binary.LittleEndian.PutUint16(buf, uint16(len(msg)))
+	return &P2PRequest{
+		Type:   128,
+		Length: buf,
+		Body:   []byte(msg),
+	}
+}
+
 
 func main() {
 	s := ""
