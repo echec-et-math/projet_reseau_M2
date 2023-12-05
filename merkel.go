@@ -25,6 +25,16 @@ type HelloExchange struct {
 	Name       []byte
 	Signature  []byte
 }
+
+type Datum struct {
+	Id        []byte // 4 bytes
+	Type      byte
+	Length    []byte // 2 bytes
+	Hash      []byte // 32 bytes
+	Value     []byte // Length - 32 bytes
+	Signature []byte
+}
+
 type Node struct {
 	Directory bool //directory or not
 	Big       bool // a chunk or a big file, if directory is true then we ignore it
