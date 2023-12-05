@@ -332,6 +332,19 @@ func buildDatumRequest(datahash []byte) *P2PRequest { // 32 bytes long
 		Body:   ipv6addr + buf2,
 	}
 } */
+
+/* func addHelloSignature(exchange *HelloExchange) {
+	exchange.Signature = blablabla // TODO
+} */
+
+/* func addDatumSignature(datum *Datum) {
+	datum.Signature = blablabla // TODO
+} */
+
+/* func addmsgSignature(msg *P2PRequest) {
+	msg.Signature = blablabla // TODO
+} */
+
 func main() {
 	s := ""
 
