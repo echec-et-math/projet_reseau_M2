@@ -263,6 +263,27 @@ func buildRootReply(roothash []byte) *P2PRequest { // hash is 32 bytes long
 		Body:   roothash,
 	}
 }
+
+func buildDatumRequest(datahash []byte) *P2PRequest { // 32 bytes long
+	buf := make([]byte, 2)
+	binary.LittleEndian.PutUint16(buf, uint16(32))
+	return &P2PRequest{
+		Type:   5,
+		Length: buf,
+		Body:   datahash,
+	}
+}
+
+/* func buildDatumReply(value []byte) *Datum { // variable length, assumed storable on 2 bytes
+	buf := make([]byte, 2)
+	binary.LittleEndian.PutUint16(buf, uint16(len(value)+32)) // add the hash length to the total
+	return &Datum{
+		Type:   132,
+		Length: buf,
+		Hash:   hash(value), // 32 bytes
+		Value:  value,
+	}
+} */
 func main() {
 	s := ""
 
