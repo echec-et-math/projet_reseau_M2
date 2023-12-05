@@ -112,9 +112,19 @@ func AddChild(p Node, n Node) {
 
 }
 
+func buildNoOpRequestOfGivenSize(size uint16) *P2PRequest {
+	buf := make([]byte, 2)
+	binary.LittleEndian.PutUint16(buf, size)
+	return &P2PRequest{
+		Length: buf,
+		Body:   make([]byte, size),
 	}
 }
-func AddChild(p Node,n Node)(){
+
+func buildNoOpRequest() *P2PRequest {
+	return buildNoOpRequestOfGivenSize(0)
+}
+
 
 }
 
