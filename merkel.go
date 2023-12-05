@@ -134,7 +134,25 @@ func buildNoOpRequest() *P2PRequest {
 	return buildNoOpRequestOfGivenSize(0)
 }
 
+func buildHelloRequest(name string) *HelloExchange {
+	buf := make([]byte, 2)
+	binary.LittleEndian.PutUint16(buf, uint16(len(name)+4)) // +4 for extensions
+	return &HelloExchange{
+		Type:   2,
+		Length: buf,
+		Name:   []byte(name),
+	}
+}
 
+func buildHelloReply(name string) *HelloExchange {
+	buf := make([]byte, 2)
+	binary.LittleEndian.PutUint16(buf, uint16(len(name)+4)) // +4 for extensions
+	return &HelloExchange{
+		Type:   129,
+		Length: buf,
+		Name:   []byte(name),
+	}
+}
 
 func buildErrorMessage(msg string) *P2PRequest {
 	buf := make([]byte, 2)
