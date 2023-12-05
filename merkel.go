@@ -212,6 +212,47 @@ func buildPubkeyReplyWithPubkey(pubkey []byte) *P2PRequest { // pubkey is 64 byt
 	}
 }
 
+/*
+func buildRootRequestNoData() *P2PRequest {
+	buf := make([]byte, 2)
+	binary.LittleEndian.PutUint16(buf, uint16(32))
+	return &P2PRequest{
+		Type:   4,
+		Length: buf,
+		Body:   emptyStringHash,
+	}
+} */
+
+func buildRootRequest(roothash []byte) *P2PRequest { // hash is 32 bytes long
+	buf := make([]byte, 2)
+	binary.LittleEndian.PutUint16(buf, uint16(32))
+	return &P2PRequest{
+		Type:   4,
+		Length: buf,
+		Body:   roothash,
+	}
+}
+
+/*
+func buildRootReplyNoData() *P2PRequest {
+	buf := make([]byte, 2)
+	binary.LittleEndian.PutUint16(buf, uint16(32))
+	return &P2PRequest{
+		Type:   131,
+		Length: buf,
+		Body:   emptyStringHash,
+	}
+} */
+
+func buildRootReply(roothash []byte) *P2PRequest { // hash is 32 bytes long
+	buf := make([]byte, 2)
+	binary.LittleEndian.PutUint16(buf, uint16(32))
+	return &P2PRequest{
+		Type:   131,
+		Length: buf,
+		Body:   roothash,
+	}
+}
 func main() {
 	s := ""
 
