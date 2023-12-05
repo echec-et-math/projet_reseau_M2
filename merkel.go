@@ -147,6 +147,43 @@ func buildErrorReply(msg string) *P2PRequest {
 	}
 }
 
+func buildPubkeyRequestNoPubkey() *P2PRequest {
+	buf := make([]byte, 2)
+	binary.LittleEndian.PutUint16(buf, uint16(0))
+	return &P2PRequest{
+		Type:   3,
+		Length: buf,
+	}
+}
+
+func buildPubkeyRequestWithPubkey(pubkey []byte) *P2PRequest { // pubkey is 64 bytes long
+	buf := make([]byte, 2)
+	binary.LittleEndian.PutUint16(buf, uint16(64))
+	return &P2PRequest{
+		Type:   3,
+		Length: buf,
+		Body:   pubkey,
+	}
+}
+
+func buildPubkeyReplyNoPubkey() *P2PRequest {
+	buf := make([]byte, 2)
+	binary.LittleEndian.PutUint16(buf, uint16(0))
+	return &P2PRequest{
+		Type:   130,
+		Length: buf,
+	}
+}
+
+func buildPubkeyReplyWithPubkey(pubkey []byte) *P2PRequest { // pubkey is 64 bytes long
+	buf := make([]byte, 2)
+	binary.LittleEndian.PutUint16(buf, uint16(64))
+	return &P2PRequest{
+		Type:   130,
+		Length: buf,
+		Body:   pubkey,
+	}
+}
 
 func main() {
 	s := ""
