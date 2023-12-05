@@ -284,6 +284,54 @@ func buildDatumRequest(datahash []byte) *P2PRequest { // 32 bytes long
 		Value:  value,
 	}
 } */
+
+/* func buildNatTraversalRequestIPv4(ipv4addr []byte, port uint16) *P2PRequest {
+	buf := make([]byte, 2)
+	binary.LittleEndian.PutUint16(buf, uint16(6)) // ipv4 addr are on 4 bytes, +2 for port
+	buf2 := make([]byte, 2)
+	binary.LittleEndian.PutUint16(buf, port)
+	return &P2PRequest{
+		Type:   6,
+		Length: buf,
+		Body:   ipv4addr + buf2,
+	}
+} */
+
+/* func buildNatTraversalRequestIPv6(ipv6addr []byte, port uint16) *P2PRequest {
+	buf := make([]byte, 2)
+	binary.LittleEndian.PutUint16(buf, uint16(18)) // ipv6 addr are on 16 bytes, +2 for port
+	buf2 := make([]byte, 2)
+	binary.LittleEndian.PutUint16(buf, port)
+	return &P2PRequest{
+		Type:   6,
+		Length: buf,
+		Body:   ipv6addr + buf2,
+	}
+} */
+
+/* func buildNatTraversalReplyIPv4(ipv4addr []byte, port uint16) *P2PRequest {
+	buf := make([]byte, 2)
+	binary.LittleEndian.PutUint16(buf, uint16(6)) // ipv4 addr are on 4 bytes, +2 for port
+	buf2 := make([]byte, 2)
+	binary.LittleEndian.PutUint16(buf, port)
+	return &P2PRequest{
+		Type:   7,
+		Length: buf,
+		Body:   ipv4addr + buf2,
+	}
+} */
+
+/* func buildNatTraversalReplyIPv6(ipv6addr []byte, port uint16) *P2PRequest {
+	buf := make([]byte, 2)
+	binary.LittleEndian.PutUint16(buf, uint16(18)) // ipv6 addr are on 16 bytes, +2 for port
+	buf2 := make([]byte, 2)
+	binary.LittleEndian.PutUint16(buf, port)
+	return &P2PRequest{
+		Type:   7,
+		Length: buf,
+		Body:   ipv6addr + buf2,
+	}
+} */
 func main() {
 	s := ""
 
