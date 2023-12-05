@@ -1,0 +1,127 @@
+package main
+ 
+import (
+	"crypto/sha256"
+	"fmt"
+	"os"
+	"bufio"
+	"io"
+)
+
+type Node struct{
+	Directory bool //directory or not
+	Big bool // a chunk or a big file, if directory is true then we ignore it
+	nbchild int 
+	Parent *Node 
+	Childs []*Node 
+	Hash []byte //the hash of the node
+	Data []byte
+
+}
+
+func createFile(filepath string)(Node){
+
+	f, err := os.Open(filepath)
+
+    if err != nil {
+        fmt.Println(err)
+    }
+    defer f.Close()
+
+    reader := bufio.NewReader(f)
+    buf := make([]byte, 1024)
+	c:= make([]Node, 32)
+	var i,j int=0,0
+	var bf []Node
+    for {
+    	n, err := reader.Read(buf)
+		if err != nil {
+			if err != io.EOF {
+				fmt.Println(err)
+			}
+			break
+		} 
+		if(i==32){
+			bf=append(bf,createBigFile(c,32))
+			i=0
+			j=j+1
+		}
+
+		c[i]=createChunk(buf,n)
+		i=i+1
+    }
+	bf[j]=createBigFile(c,i+1)
+	var bbf []Node
+	for (len(bf)>32) {
+		for a:=0;a<len(bf);a=a+32 {
+			bbf=append(bbf,createBigFile(c[a:32],32))
+		}
+		bf=nil
+		copy(bf,bbf)//copie dans bf bbf
+	}
+	return createBigFile(bf,len(bf))
+
+
+
+    
+}
+func createChunk(content []byte, l int)(Node){
+	h := sha256.New()
+	h.Write(content)
+	return Node{
+		Directory : false,
+		Big: false,
+		Parent:nil,
+		Hash :h.Sum(nil),
+		Data: content[0:l],
+	}
+}
+func createBigFile(ch []Node,nb int)(Node){
+	s:=[]byte{}
+	h:=sha256.New()
+	n := Node{
+		Directory:false,
+		Big : true,
+		nbchild: nb,
+	}
+	for i:=1;i<nb;i++ {
+		s=append(s, ch[i].Hash...)
+		n.Childs[i]=&ch[i]
+		n.Childs[i].Parent=&n
+	}
+	h.Write(s)
+	n.Hash=h.Sum(nil)
+	return n
+}
+func copyChunk(n *Node)(*Node){
+	return &Node{
+		Directory : n.Directory,
+		Big : n.Big,
+		nbchild : n.nbchild,
+		Parent : n.Parent,
+		Childs : n.Childs,
+		Hash:n.Hash,
+		Data:n.Data,
+
+	}
+}
+func AddChild(p Node,n Node)(){
+
+}
+
+func main() {
+    s := ""
+
+    h := sha256.New()
+
+    h.Write([]byte(s))
+
+    bs := h.Sum(nil)
+	h.Write(bs)
+	ba := h.Sum(nil)
+
+    fmt.Println(s)
+    fmt.Printf("%x\n", bs)
+	fmt.Printf("%x\n", ba)
+
+}
