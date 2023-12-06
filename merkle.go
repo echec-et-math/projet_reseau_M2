@@ -357,6 +357,22 @@ func setMsgId(msg *P2PRequest, id uint32) {
 	msg.Signature = blablabla // TODO
 } */
 
+/* TODO
+
+func helloToPacket(exchange *HelloExchange) *UDPPacket { // not the right type but you get the idea
+
+}
+
+func datumToPacket(datum *Datum) *UDPPacket {
+
+}
+
+func requestToPacket(req *P2PRequest) *UDPPacket {
+
+}
+
+*/
+
 func main() {
 	s := ""
 
