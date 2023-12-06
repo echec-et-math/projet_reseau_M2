@@ -333,6 +333,18 @@ func buildDatumRequest(datahash []byte) *P2PRequest { // 32 bytes long
 	}
 } */
 
+func setHelloId(exchange *HelloExchange, id uint32) {
+	binary.LittleEndian.PutUint32(exchange.Id, id)
+}
+
+func setDatumId(datum *Datum, id uint32) {
+	binary.LittleEndian.PutUint32(datum.Id, id)
+}
+
+func setMsgId(msg *P2PRequest, id uint32) {
+	binary.LittleEndian.PutUint32(msg.Id, id)
+}
+
 /* func addHelloSignature(exchange *HelloExchange) {
 	exchange.Signature = blablabla // TODO
 } */
@@ -341,7 +353,7 @@ func buildDatumRequest(datahash []byte) *P2PRequest { // 32 bytes long
 	datum.Signature = blablabla // TODO
 } */
 
-/* func addmsgSignature(msg *P2PRequest) {
+/* func addMsgSignature(msg *P2PRequest) {
 	msg.Signature = blablabla // TODO
 } */
 
