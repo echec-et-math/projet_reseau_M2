@@ -18,7 +18,19 @@ func main() {
 	getPeerRootHashFlag := ""
 	helpFlag := false
 	debugmode := false
+	reader := bufio.NewReader(os.Stdin)
+	commandWord := ""
+	secondWord := ""
 	while (true) {
+		line, err := reader.ReadString('\n')
+    	if err != nil {
+        	log.Fatal(err)
+    	}
+		parts := string.Split(line, "\n")
+		commandWord := parts[0]
+		if len(parts) > 1 {
+			secondWord := parts[1]
+		}
 		if (RESTMode) {
 			// client REST mode
 			listPeersFlag := false
