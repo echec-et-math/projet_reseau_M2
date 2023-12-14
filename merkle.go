@@ -1,4 +1,4 @@
-package main
+package src
 
 import (
 	"bufio"
@@ -373,7 +373,7 @@ func requestToPacket(req *P2PRequest) *UDPPacket {
 
 */
 
-func main() {
+func udp_main() {
 	s := ""
 
 	h := sha256.New()

@@ -1,9 +1,8 @@
-package main
+package src
 
 import (
 	"crypto/tls"
 	"encoding/hex"
-	"flag"
 	"fmt"
 	"io"
 	"log"
@@ -14,6 +13,7 @@ import (
 
 var serv_url = "https://jch.irif.fr:8443"
 
+var debugmode = true  // TODO
 var force_err = false // this forces error-handling routines to happen, even if nothing failed
 
 func buildGetPeersRequest() *http.Request {
