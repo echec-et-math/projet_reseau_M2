@@ -14,7 +14,9 @@ func main() {
 	getPeerKeyFlag := ""
 	getPeerRootHashFlag := ""
 	helpFlag := false
+	exitFlag := false
 	debugmode := false
+	name := ""
 	reader := bufio.NewReader(os.Stdin)
 	commandWord := ""
 	secondWord := ""
@@ -34,6 +36,7 @@ func main() {
 			getPeerAddressesFlag = ""
 			getPeerKeyFlag = ""
 			getPeerRootHashFlag = ""
+			exitFlag = false
 			helpFlag = false
 			// read user input
 			switch commandWord {
@@ -55,11 +58,12 @@ func main() {
 			case "getRootHash":
 				getPeerRootHashFlag = secondWord
 				break
-			case "connect":
+			case "switchmode":
 				RESTMode = false
 				break
 			case "exit":
-				return
+				exitFlag = true
+				break
 			default:
 				helpFlag = true
 				break
@@ -67,9 +71,12 @@ func main() {
 			// TODO : allow a list of peers instead of a single one here
 			rest_main(listPeersFlag, getPeerAddressesFlag, getPeerKeyFlag, getPeerRootHashFlag, helpFlag, debugmode)
 		} else {
+			latest_req_time := 0 // current time here
 			// client P2P mode
 			// read user input
 			switch commandWord {
+			case "connect":
+				break
 			case "debugon":
 				debugmode = true
 				break
@@ -80,7 +87,10 @@ func main() {
 				RESTMode = true
 				break
 			case "exit":
-				return
+				exitFlag = true
+				break
+			case "op":
+				// need precise parsing of the actual operation here
 			default:
 				helpFlag = true
 				break

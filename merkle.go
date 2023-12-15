@@ -373,19 +373,27 @@ func requestToPacket(req *P2PRequest) *UDPPacket {
 
 */
 
-func udp_main() {
-	s := ""
+func udp_main(helpFlag bool, name string) {
+	if helpFlag {
+		// display help here
+	}
+	else  {
+		// sort the reqtypes
+		// case helloexchange here
+		// init an HelloExchange
+		// reqHello = buildHelloRequest(name)
+	}
+	// s := ""
 
-	h := sha256.New()
+	// h := sha256.New()
 
-	h.Write([]byte(s))
+	// h.Write([]byte(s))
 
-	bs := h.Sum(nil)
-	h.Write(bs)
-	ba := h.Sum(nil)
+	// bs := h.Sum(nil)
+	// h.Write(bs)
+	// ba := h.Sum(nil)
 
-	fmt.Println(s)
-	fmt.Printf("%x\n", bs)
-	fmt.Printf("%x\n", ba)
-
+	// fmt.Println(s)
+	// fmt.Printf("%x\n", bs)
+	// fmt.Printf("%x\n", ba)
 }

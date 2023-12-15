@@ -75,7 +75,7 @@ func processGetPeersResponse(resp *http.Response) {
 }
 
 func processGetPeerAddressesResponse(resp *http.Response) {
-	if resp.StatusCode == http.StatusNotFound {
+	if resp.StatusCode == http.StatusNotFound { // 404
 		fmt.Println(resp.Status)
 	}
 	aux_list_printer(resp.Body)
@@ -104,7 +104,7 @@ func processGetPeerRootHashResponse(resp *http.Response) {
 	resp.Body.Close()
 }
 
-func rest_main(listPeersFlag bool, getPeerAddressesFlag string, getPeerKeyFlag string, getPeerRootHashFlag string, helpFlag bool, debugmode bool) {
+func rest_main(listPeersFlag bool, getPeerAddressesFlag string, getPeerKeyFlag string, getPeerRootHashFlag string, helpFlag bool, exitFlag bool, debugmode bool) {
 	transport := &*http.DefaultTransport.(*http.Transport)
 	transport.TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
 	client := &http.Client{
@@ -115,15 +115,15 @@ func rest_main(listPeersFlag bool, getPeerAddressesFlag string, getPeerKeyFlag s
 		fmt.Println("Usage for REST mode :")
 		fmt.Println("Several commands can be used, the help command is used by default if none is provided.")
 		fmt.Println("Commands :")
-		fmt.Println("connect : switches into peer-to-peer mode")
 		fmt.Println("debugon : enables error display (disabled by default)")
 		fmt.Println("debugoff : disables error display (disabled by default)")
 		fmt.Println("exit : quits the program")
-		fmt.Println("list : fetches and displays a list of known peers from the server.")
-		fmt.Println("help : displays this help and exits. Default behavior.")
 		fmt.Println("getAddresses [peer_name] : fetches and displays a list of known addresses for a given peer, from the server.")
 		fmt.Println("getKey [peer_name] : fetches and displays the public key of a given peer, from the server.")
 		fmt.Println("getRootHash [peer_name] : fetches and displays the hash of the root of a given peer, from the server.")
+		fmt.Println("help : displays this help and exits. Default behavior.")
+		fmt.Println("list : fetches and displays a list of known peers from the server.")
+		fmt.Println("switchmode : switches into peer-to-peer mode")
 		return
 	}
 	if listPeersFlag {
@@ -165,5 +165,9 @@ func rest_main(listPeersFlag bool, getPeerAddressesFlag string, getPeerKeyFlag s
 			}
 			processGetPeerRootHashResponse(resp)
 		}
+	}
+	if exitFlag {
+		// todo disconnect client
+		return
 	}
 }
