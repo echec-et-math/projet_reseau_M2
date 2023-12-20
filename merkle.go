@@ -1,4 +1,4 @@
-package src
+package main
 
 import (
 	"bufio"
@@ -197,7 +197,31 @@ func PrintTree(r Node, pre string){
 		fmt.Println(pre+"chunk");
 	}
 }
+func WriteFile(current Node, index int, f os.File) int{
+	if(current.Big){
+		tmp:=index
+		for i:=0; i< current.nbchild;i++{
+			tmp=tmp+WriteFile(current.Childs[i],tmp,f);
+		}
+		return index+(1024*current.nbchild)
+	}else{
+		f.WriteAt(current.Data, int64(index))
+		return index+1024
+	}
+	return -1
+}
+func verifChunk(content []byte, Hash []byte) bool{
+	h := sha256.New()
+	h.Write(content)
+	tmp :=h.Sum(nil)
+	for i:=0; i<32;i++{
+		if tmp[i]!=Hash[i]{
+			return false
+		}
+	}
 
+	return true
+}
 
 func buildNoOpRequestOfGivenSize(size uint16) *P2PRequest {
 	buf := make([]byte, 2)
@@ -351,7 +375,7 @@ func buildDatumRequest(datahash []byte) *P2PRequest { // 32 bytes long
 		Hash:   hash(value), // 32 bytes
 		Value:  value,
 	}
-} */
+} */  
 
 /* func buildNatTraversalRequestIPv4(ipv4addr []byte, port uint16) *P2PRequest {
 	buf := make([]byte, 2)
@@ -442,15 +466,7 @@ func requestToPacket(req *P2PRequest) *UDPPacket {
 */
 
 func udp_main(helpFlag bool, name string) {
-	if helpFlag {
-		// display help here
-	}
-	else  {
-		// sort the reqtypes
-		// case helloexchange here
-		// init an HelloExchange
-		// reqHello = buildHelloRequest(name)
-	}
+	
 	// s := ""
 
 	// h := sha256.New()
