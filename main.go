@@ -686,7 +686,8 @@ func main() {
 		if err != nil {
 			log.Fatal(err)
 		}
-		parts := strings.Split(line, "\n")
+		line = strings.ReplaceAll(line, "\n", "") // remove trailing newline
+		parts := strings.Split(line, " ")
 		commandWord = parts[0]
 		if len(parts) > 1 {
 			secondWord = parts[1]
