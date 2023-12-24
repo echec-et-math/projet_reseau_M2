@@ -63,7 +63,9 @@ func aux_list_printer(body io.ReadCloser) {
 		return
 	}
 	for _, line := range strings.Split(string(text[:]), "\n") {
-		fmt.Println("[REQBODY] " + line)
+		if line != "" { // remove ending newline
+			fmt.Println("[REQBODY] " + line)
+		}
 	}
 }
 
