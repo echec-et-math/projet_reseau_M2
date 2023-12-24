@@ -584,6 +584,9 @@ func rest_main(listPeersFlag bool, getPeerAddressesFlag string, getPeerKeyFlag s
 		Transport: transport,
 		Timeout:   50 * time.Second,
 	}
+	if exitFlag {
+		os.Exit(0)
+	}
 	if helpFlag {
 		fmt.Println("Usage for REST mode :")
 		fmt.Println("Several commands can be used, the help command is used by default if none is provided.")
