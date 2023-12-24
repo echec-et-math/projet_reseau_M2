@@ -97,7 +97,7 @@ func processGetPeerKeyResponse(resp *http.Response) {
 	if resp.StatusCode == http.StatusNoContent { // 204
 		fmt.Println(resp.Status)
 	}
-	aux_list_printer(resp.Body)
+	aux_hash_printer(resp.Body)
 	resp.Body.Close()
 }
 
