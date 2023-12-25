@@ -677,6 +677,7 @@ func rest_main(listPeersFlag bool, getPeerAddressesFlag string, getPeerKeyFlag s
 	}
 }
 
+func udp_main(helpFlag bool, exitFlag bool, name string) {
 	// P2P CLI (TODO)
 
 	// s := ""
@@ -692,8 +693,21 @@ func rest_main(listPeersFlag bool, getPeerAddressesFlag string, getPeerKeyFlag s
 	// fmt.Println(s)
 	// fmt.Printf("%x\n", bs)
 	// fmt.Printf("%x\n", ba)
-	a := createFile("projet.pdf")
-	PrintTree(a, "")
+	if exitFlag {
+		os.Exit(0)
+	}
+	if helpFlag {
+		fmt.Println("Usage for P2P (UDP) mode :")
+		fmt.Println("Several commands can be used, the help command is used by default if none is provided.")
+		fmt.Println("Commands :")
+		fmt.Println("exit : quits the program")
+		fmt.Println("help : displays this help and exits. Default behavior.")
+		fmt.Println("switchmode : switches into REST mode")
+		return
+	} else {
+		a := createFile("projet.pdf")
+		PrintTree(a, "")
+	}
 }
 
 func main() { // CLI Merge from REST and P2P (UDP)
@@ -707,9 +721,12 @@ func main() { // CLI Merge from REST and P2P (UDP)
 	debugmode := false
 	//name := "" // client name for registration (TODO)
 	reader := bufio.NewReader(os.Stdin)
-	commandWord := ""
-	secondWord := ""
 	for {
+		commandWord := ""
+		secondWord := ""
+		thirdWord := ""
+		fourthWord := ""
+		fifthWord := ""
 		fmt.Print(">")
 		line, err := reader.ReadString('\n')
 		if err != nil {
@@ -720,6 +737,16 @@ func main() { // CLI Merge from REST and P2P (UDP)
 		commandWord = parts[0]
 		if len(parts) > 1 {
 			secondWord = parts[1]
+			if len(parts) > 2 {
+				thirdWord = parts[2]
+				if len(parts) > 3 {
+					fourthWord = parts[3]
+					if len(parts) > 4 {
+						fifthWord = parts[4]
+					}
+				}
+
+			}
 		}
 		fmt.Println()
 		if RESTMode {
@@ -787,7 +814,10 @@ func main() { // CLI Merge from REST and P2P (UDP)
 				helpFlag = true
 				break
 			}
-			//udp_main(..., helpFlag, debugmode)
+			udp_main(helpFlag, exitFlag, "no_name")
+		}
+		if debugmode {
+			fmt.Println(commandWord + " " + secondWord + " " + thirdWord + " " + fourthWord + " " + fifthWord)
 		}
 		fmt.Println()
 	}
