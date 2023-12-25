@@ -24,6 +24,10 @@ var serv_url = "https://jch.irif.fr:8443"
 var debugmode = true  // TODO
 var force_err = false // this forces error-handling routines to happen, even if nothing failed
 
+/*
+	REST request builder
+*/
+
 func buildGetPeersRequest() *http.Request {
 	req, err := http.NewRequest("GET", serv_url+"/peers", nil)
 	if (err != nil && debugmode) || force_err {
@@ -55,6 +59,10 @@ func buildGetPeerRootHashRequest(peer_name string) *http.Request {
 	}
 	return req
 }
+
+/*
+	REST request processors
+*/
 
 func aux_list_printer(body io.ReadCloser) {
 	text, err := io.ReadAll(body)
@@ -118,6 +126,10 @@ func processGetPeerRootHashResponse(resp *http.Response) {
 	PEER-TO-PEER SECTION
 */
 
+/*
+	Peer-to-peer structs for communication
+*/
+
 type P2PRequest struct {
 	Id        []byte // 4 bytes
 	Type      byte
@@ -154,6 +166,10 @@ type Node struct {
 	Data      []byte
 	name      string //for dir and the root of big file
 }
+
+/*
+	File manipulation primitives
+*/
 
 func filename(filepath string) string {
 
@@ -332,6 +348,10 @@ func verifChunk(content []byte, Hash []byte) bool {
 
 	return true
 }
+
+/*
+	Request builders for peer-to-peer communication
+*/
 
 func buildNoOpRequestOfGivenSize(size uint16) *P2PRequest {
 	buf := make([]byte, 2)
@@ -535,6 +555,10 @@ func buildDatumRequest(datahash []byte) *P2PRequest { // 32 bytes long
 	}
 } */
 
+/*
+	Setters for additional info throughout the requests
+*/
+
 func setHelloId(exchange *HelloExchange, id uint32) {
 	binary.LittleEndian.PutUint32(exchange.Id, id)
 }
@@ -559,8 +583,11 @@ func setMsgId(msg *P2PRequest, id uint32) {
 	msg.Signature = blablabla // TODO
 } */
 
-/* TODO
+/*
+	Custom struct converter for proper UDP datagram communication
+*/
 
+/*
 func helloToPacket(exchange *HelloExchange) *UDPPacket { // not the right type but you get the idea
 
 }
@@ -572,7 +599,6 @@ func datumToPacket(datum *Datum) *UDPPacket {
 func requestToPacket(req *P2PRequest) *UDPPacket {
 
 }
-
 */
 
 /*
@@ -580,6 +606,7 @@ func requestToPacket(req *P2PRequest) *UDPPacket {
 */
 
 func rest_main(listPeersFlag bool, getPeerAddressesFlag string, getPeerKeyFlag string, getPeerRootHashFlag string, helpFlag bool, exitFlag bool, debugmode bool) {
+	// REST CLI
 	transport := &*http.DefaultTransport.(*http.Transport)
 	transport.TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
 	client := &http.Client{
@@ -650,7 +677,7 @@ func rest_main(listPeersFlag bool, getPeerAddressesFlag string, getPeerKeyFlag s
 	}
 }
 
-func udp_main(helpFlag bool, name string) {
+	// P2P CLI (TODO)
 
 	// s := ""
 
@@ -669,7 +696,7 @@ func udp_main(helpFlag bool, name string) {
 	PrintTree(a, "")
 }
 
-func main() {
+func main() { // CLI Merge from REST and P2P (UDP)
 	RESTMode := true
 	listPeersFlag := false
 	getPeerAddressesFlag := ""
@@ -755,7 +782,7 @@ func main() {
 				exitFlag = true
 				break
 			case "op":
-				// need precise parsing of the actual operation here
+				// need precise parsing of the actual operation here through the secondword, or add additional prompts
 			default:
 				helpFlag = true
 				break
