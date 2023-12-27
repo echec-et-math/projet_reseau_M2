@@ -446,9 +446,46 @@ func findNode(Hash []byte, n Node)*Node{
 func downloadNode(Hash []byte,conn net.Conn)Node{
 	tmp:=buildDatumRequest(Hash)
 	conn.Write(requestToByteSlice(tmp))
-	answer := make([]byte, 1025)
+	answer := make([]byte, 1)
 	conn.Read(answer)
+	if(int(answer[0])==0){
+		//chunk
+		data:= make([]byte,1024)
+		conn.Read(data)
+		createChunk(data,1024)//TODO faire un truc qui detecte la vraie longueur des donné
+	}
+	if(int(answer[0])==1){
+		//big
+		hash:=make([]byte,32)
+		conn.Read(hash)
+		var bf []Node
+		for i:=0;i<32;i++{
+			bf=append(bf,downloadNode(hash,conn))
+			conn.Read(hash)
+			if(int(hash[0])==0){
+				break
+			}
+		}
+		return createBigFile(bf,len(bf))
+	}
+	if(int(answer[0])==2){
+		//directory
+		n:=createDirectory("")
+		name:=make([]byte,32)
+		hash:=make([]byte,32)
+		for i:=0;i<16;i++{
+			conn.Read(name)
+			conn.Read(hash)
+			if(int(hash[0])==0){
+				break
+			}
+			AddChild(n,downloadNode(hash,conn))
+			n.Childs[i].name=string(name)
+		}
+		return n
+	}
 	return createDirectory("")
+
 }
 
 /*
