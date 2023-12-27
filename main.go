@@ -37,13 +37,13 @@ var currentAbr = createDirectory("root")
 var debugmode = true  // TODO
 var force_err = false // this forces error-handling routines to happen, even if nothing failed
 
-func displayError(debugmode bool, packet []byte) {
+func displayError(packet []byte) {
 	if debugmode && len(packet) >= 5 && packet[4] == 128 {
 		fmt.Println("ErrorReply from server : " + string(packet[7:]))
 	}
 }
 
-func logProgress(debugmode bool, msg string) {
+func logProgress(msg string) {
 	if debugmode {
 		fmt.Println(msg)
 	}
@@ -155,43 +155,40 @@ func processGetPeerRootHashResponse(resp *http.Response) {
 	REST register module
 */
 
-func registerPeer(conn net.Conn, name string, hasPubkey bool, hasFiles bool, pubkey []byte, roothash []byte, debugmode bool) {
+func registerPeer(conn net.Conn, name string, hasPubkey bool, hasFiles bool, pubkey []byte, roothash []byte) {
 	// dial server
-	req := buildHelloRequest(name)
-	setHelloId(req, 2)
-	setHelloExtensions(req, 0)
-	conn.Write(helloToByteSlice(req))
-	logProgress(debugmode, "Handshake initiated")
-	rep := make([]byte, 64) // arbitrary : name has no upper bound
-	conn.Read(rep)
-	displayError(debugmode, rep)
-	logProgress(debugmode, "Handshake response received")
-	id := binary.LittleEndian.Uint32(rep[0:4])
-	if id != 2 {
-		fmt.Printf("Warning : unmatching ID in handshake response, expected 2 and got %d\n", id)
+	req := buildHelloRequest(name, 23, 0)
+	if hasPubkey {
+		// sign the Hello
 	}
-	pubkeyreq := make([]byte, 64)
-	conn.Read(pubkeyreq)
-	displayError(debugmode, pubkeyreq)
-	logProgress(debugmode, "Pubkey request received")
+	s := helloToByteSlice(req)
+	conn.Write(s)
+	logProgress("Handshake initiated")
+	rep := readMsgNoSignature(conn)
+	logProgress("Handshake response received")
+	id := binary.BigEndian.Uint32(rep[0:4])
+	if id != 23 {
+		fmt.Printf("Warning : unmatching ID in handshake response, expected 23 and got %d\n", id)
+	}
+	pubkeyreq := readMsgNoSignature(conn)
+	pubkeyid := binary.BigEndian.Uint32(pubkeyreq[0:4])
+	logProgress("Pubkey request received")
 	req2 := buildPubkeyReplyNoPubkey()
 	if hasPubkey {
 		req2 = buildPubkeyReplyWithPubkey(pubkey)
 	}
-	setMsgId(req2, 0)
+	setMsgId(req2, pubkeyid)
 	conn.Write(requestToByteSlice(req2))
-	logProgress(debugmode, "Provided server with pubkey")
-	roothashreq := make([]byte, 64)
-	conn.Read(roothashreq)
-	displayError(debugmode, roothashreq)
-	logProgress(debugmode, "Root hash request received")
+	logProgress("Provided server with pubkey")
+	_ = readMsgNoSignature(conn)
+	logProgress("Root hash request received")
 	req3 := buildRootReply(emptyStringHash)
 	if hasFiles {
 		req3 = buildRootReply(roothash)
 	}
 	setMsgId(req3, 0)
 	conn.Write(requestToByteSlice(req3))
-	logProgress(debugmode, "Provided server with roothash")
+	logProgress("Provided server with roothash")
 	// maintain connection through goroutine until interruption
 }
 
@@ -203,7 +200,7 @@ func registerPeer(conn net.Conn, name string, hasPubkey bool, hasFiles bool, pub
 	Peer-to-peer structs for communication
 */
 
-type P2PRequest struct {
+type P2PMsg struct {
 	Id        []byte // 4 bytes
 	Type      byte
 	Length    []byte // 2 bytes
@@ -458,81 +455,68 @@ func downloadNode(Hash []byte,conn net.Conn)Node{
 	Request builders for peer-to-peer communication
 */
 
-func buildNoOpRequestOfGivenSize(size uint16) *P2PRequest {
+func buildNoOpRequestOfGivenSize(size uint16) *P2PMsg {
 	buf := make([]byte, 2)
-	binary.LittleEndian.PutUint16(buf, size)
-	return &P2PRequest{
+	binary.BigEndian.PutUint16(buf, size)
+	return &P2PMsg{
 		Length: buf,
 		Body:   make([]byte, size),
 	}
 }
 
-func buildNoOpRequest() *P2PRequest {
+func buildNoOpRequest() *P2PMsg {
 	return buildNoOpRequestOfGivenSize(0)
 }
 
-func buildHelloRequest(name string) *HelloExchange {
-	buf := make([]byte, 2)
-	binary.LittleEndian.PutUint16(buf, uint16(len(name)+4)) // +4 for extensions
+func buildHelloRequest(name string, id uint32, extensions uint32) *HelloExchange {
+	buf := make([]byte, 4)
+	buf2 := make([]byte, 2)
+	buf3 := make([]byte, 4)
+	binary.BigEndian.PutUint32(buf, id)
+	binary.BigEndian.PutUint16(buf2, uint16(len(name)+4)) // +4 for extensions
+	binary.BigEndian.PutUint32(buf3, extensions)
 	return &HelloExchange{
-		Type:   2,
-		Length: buf,
-		Name:   []byte(name),
+		Id:         buf,
+		Type:       2,
+		Length:     buf2,
+		Extensions: buf3,
+		Name:       []byte(name),
 	}
 }
 
-func buildErrorMessage(msg string) *P2PRequest {
+func buildErrorMessage(msg string) *P2PMsg {
 	buf := make([]byte, 2)
-	binary.LittleEndian.PutUint16(buf, uint16(len(msg)))
-	return &P2PRequest{
+	binary.BigEndian.PutUint16(buf, uint16(len(msg)))
+	return &P2PMsg{
 		Type:   1,
 		Length: buf,
 		Body:   []byte(msg),
 	}
 }
 
-func buildErrorReply(msg string) *P2PRequest {
+func buildErrorReply(msg string) *P2PMsg {
 	buf := make([]byte, 2)
-	binary.LittleEndian.PutUint16(buf, uint16(len(msg)))
-	return &P2PRequest{
+	binary.BigEndian.PutUint16(buf, uint16(len(msg)))
+	return &P2PMsg{
 		Type:   128,
 		Length: buf,
 		Body:   []byte(msg),
 	}
 }
 
-func buildPubkeyRequestNoPubkey() *P2PRequest {
+func buildPubkeyReplyNoPubkey() *P2PMsg {
 	buf := make([]byte, 2)
-	binary.LittleEndian.PutUint16(buf, uint16(0))
-	return &P2PRequest{
-		Type:   3,
-		Length: buf,
-	}
-}
-
-func buildPubkeyRequestWithPubkey(pubkey []byte) *P2PRequest { // pubkey is 64 bytes long
-	buf := make([]byte, 2)
-	binary.LittleEndian.PutUint16(buf, uint16(64))
-	return &P2PRequest{
-		Type:   3,
-		Length: buf,
-		Body:   pubkey,
-	}
-}
-
-func buildPubkeyReplyNoPubkey() *P2PRequest {
-	buf := make([]byte, 2)
-	binary.LittleEndian.PutUint16(buf, uint16(0))
-	return &P2PRequest{
+	binary.BigEndian.PutUint16(buf, uint16(0))
+	return &P2PMsg{
 		Type:   130,
 		Length: buf,
 	}
 }
 
-func buildPubkeyReplyWithPubkey(pubkey []byte) *P2PRequest { // pubkey is 64 bytes long
+func buildPubkeyReplyWithPubkey(pubkey []byte) *P2PMsg { // pubkey is 64 bytes long
 	buf := make([]byte, 2)
-	binary.LittleEndian.PutUint16(buf, uint16(64))
-	return &P2PRequest{
+	binary.BigEndian.PutUint16(buf, uint16(64))
+	return &P2PMsg{
 		Type:   130,
 		Length: buf,
 		Body:   pubkey,
@@ -540,105 +524,35 @@ func buildPubkeyReplyWithPubkey(pubkey []byte) *P2PRequest { // pubkey is 64 byt
 }
 
 /*
-func buildRootRequestNoData() *P2PRequest {
+func buildRootReplyNoData() *P2PMsg {
 	buf := make([]byte, 2)
-	binary.LittleEndian.PutUint16(buf, uint16(32))
-	return &P2PRequest{
-		Type:   4,
-		Length: buf,
-		Body:   emptyStringHash,
-	}
-} */
-
-/*
-func buildRootReplyNoData() *P2PRequest {
-	buf := make([]byte, 2)
-	binary.LittleEndian.PutUint16(buf, uint16(32))
-	return &P2PRequest{
+	binary.BigEndian.PutUint16(buf, uint16(32))
+	return &P2PMsg{
 		Type:   131,
 		Length: buf,
 		Body:   emptyStringHash,
 	}
 } */
 
-func buildRootReply(roothash []byte) *P2PRequest { // hash is 32 bytes long
+func buildRootReply(roothash []byte) *P2PMsg { // hash is 32 bytes long
 	buf := make([]byte, 2)
-	binary.LittleEndian.PutUint16(buf, uint16(32))
-	return &P2PRequest{
+	binary.BigEndian.PutUint16(buf, uint16(32))
+	return &P2PMsg{
 		Type:   131,
 		Length: buf,
 		Body:   roothash,
 	}
 }
 
-func buildDatumRequest(datahash []byte) *P2PRequest { // 32 bytes long
+func buildDatumRequest(datahash []byte) *P2PMsg { // 32 bytes long
 	buf := make([]byte, 2)
-	binary.LittleEndian.PutUint16(buf, uint16(32))
-	return &P2PRequest{
+	binary.BigEndian.PutUint16(buf, uint16(32))
+	return &P2PMsg{
 		Type:   5,
 		Length: buf,
 		Body:   datahash,
 	}
 }
-
-/* func buildDatumReply(value []byte) *Datum { // variable length, assumed storable on 2 bytes
-	buf := make([]byte, 2)
-	binary.LittleEndian.PutUint16(buf, uint16(len(value)+32)) // add the hash length to the total
-	return &Datum{
-		Type:   132,
-		Length: buf,
-		Hash:   hash(value), // 32 bytes
-		Value:  value,
-	}
-} */
-
-/* func buildNatTraversalRequestIPv4(ipv4addr []byte, port uint16) *P2PRequest {
-	buf := make([]byte, 2)
-	binary.LittleEndian.PutUint16(buf, uint16(6)) // ipv4 addr are on 4 bytes, +2 for port
-	buf2 := make([]byte, 2)
-	binary.LittleEndian.PutUint16(buf, port)
-	return &P2PRequest{
-		Type:   6,
-		Length: buf,
-		Body:   ipv4addr + buf2,
-	}
-} */
-
-/* func buildNatTraversalRequestIPv6(ipv6addr []byte, port uint16) *P2PRequest {
-	buf := make([]byte, 2)
-	binary.LittleEndian.PutUint16(buf, uint16(18)) // ipv6 addr are on 16 bytes, +2 for port
-	buf2 := make([]byte, 2)
-	binary.LittleEndian.PutUint16(buf, port)
-	return &P2PRequest{
-		Type:   6,
-		Length: buf,
-		Body:   ipv6addr + buf2,
-	}
-} */
-
-/* func buildNatTraversalReplyIPv4(ipv4addr []byte, port uint16) *P2PRequest {
-	buf := make([]byte, 2)
-	binary.LittleEndian.PutUint16(buf, uint16(6)) // ipv4 addr are on 4 bytes, +2 for port
-	buf2 := make([]byte, 2)
-	binary.LittleEndian.PutUint16(buf, port)
-	return &P2PRequest{
-		Type:   7,
-		Length: buf,
-		Body:   ipv4addr + buf2,
-	}
-} */
-
-/* func buildNatTraversalReplyIPv6(ipv6addr []byte, port uint16) *P2PRequest {
-	buf := make([]byte, 2)
-	binary.LittleEndian.PutUint16(buf, uint16(18)) // ipv6 addr are on 16 bytes, +2 for port
-	buf2 := make([]byte, 2)
-	binary.LittleEndian.PutUint16(buf, port)
-	return &P2PRequest{
-		Type:   7,
-		Length: buf,
-		Body:   ipv6addr + buf2,
-	}
-} */
 
 /*
 	Setters for additional info throughout the requests
@@ -646,22 +560,22 @@ func buildDatumRequest(datahash []byte) *P2PRequest { // 32 bytes long
 
 func setHelloId(exchange *HelloExchange, id uint32) {
 	exchange.Id = make([]byte, 4)
-	binary.LittleEndian.PutUint32(exchange.Id, id)
+	binary.BigEndian.PutUint32(exchange.Id, id)
 }
 
 func setDatumId(datum *Datum, id uint32) {
 	datum.Id = make([]byte, 4)
-	binary.LittleEndian.PutUint32(datum.Id, id)
+	binary.BigEndian.PutUint32(datum.Id, id)
 }
 
-func setMsgId(msg *P2PRequest, id uint32) {
+func setMsgId(msg *P2PMsg, id uint32) {
 	msg.Id = make([]byte, 4)
-	binary.LittleEndian.PutUint32(msg.Id, id)
+	binary.BigEndian.PutUint32(msg.Id, id)
 }
 
 func setHelloExtensions(exchange *HelloExchange, n uint32) {
 	exchange.Extensions = make([]byte, 4)
-	binary.LittleEndian.PutUint32(exchange.Extensions, n)
+	binary.BigEndian.PutUint32(exchange.Extensions, n)
 }
 
 /* func addHelloSignature(exchange *HelloExchange) {
@@ -672,7 +586,7 @@ func setHelloExtensions(exchange *HelloExchange, n uint32) {
 	datum.Signature = blablabla // TODO
 } */
 
-/* func addMsgSignature(msg *P2PRequest) {
+/* func addMsgSignature(msg *P2PMsg) {
 	msg.Signature = blablabla // TODO
 } */
 
@@ -724,7 +638,7 @@ func datumToByteSlice(datum *Datum) []byte {
 	return res
 }
 
-func requestToByteSlice(req *P2PRequest) []byte {
+func requestToByteSlice(req *P2PMsg) []byte {
 	l, _ := strconv.Atoi(string(req.Length)) // TODO err handling
 	res := make([]byte, 7+l+len(req.Signature))
 	for i := 0; i < 4; i++ {
@@ -753,10 +667,40 @@ func UDPListener() {
 }
 
 /*
+	UDP readers
+*/
+
+func readMsgNoSignature(conn net.Conn) []byte {
+	// first read until the length
+	header := make([]byte, 7)
+	conn.Read(header)
+	length := binary.BigEndian.Uint16(header[5:7])
+	content := make([]byte, length)
+	conn.Read(content)
+	res := append(header, content...)
+	displayError(res)
+	return res
+}
+
+func readMsgWithSignature(conn net.Conn) []byte {
+	// first read until the length
+	header := make([]byte, 7)
+	conn.Read(header)
+	length := binary.BigEndian.Uint16(header[5:7])
+	content := make([]byte, length)
+	conn.Read(content)
+	signature := make([]byte, 64)
+	conn.Read(signature)
+	res := append(append(header, content...), signature...)
+	displayError(res)
+	return res
+}
+
+/*
 	CLI SECTION
 */
 
-func rest_main(client *http.Client, listPeersFlag bool, getPeerAddressesFlag string, getPeerKeyFlag string, getPeerRootHashFlag string, helpFlag bool, exitFlag bool, debugmode bool) {
+func rest_main(client *http.Client, listPeersFlag bool, getPeerAddressesFlag string, getPeerKeyFlag string, getPeerRootHashFlag string, helpFlag bool, exitFlag bool) {
 	// REST CLI
 	if exitFlag {
 		os.Exit(0)
@@ -878,7 +822,6 @@ func main() { // CLI Merge from REST and P2P (UDP)
 	getPeerRootHashFlag := ""
 	helpFlag := false
 	exitFlag := false
-	debugmode := false
 	//name := "" // client name for registration (TODO)
 	reader := bufio.NewReader(os.Stdin)
 	for {
@@ -938,7 +881,7 @@ func main() { // CLI Merge from REST and P2P (UDP)
 				getPeerRootHashFlag = secondWord
 				break
 			case "register":
-				registerPeer(conn, name, hasPubKey, hasFiles, pubkey, roothash, debugmode)
+				registerPeer(conn, name, hasPubKey, hasFiles, pubkey, roothash)
 				break
 			case "setName":
 				name = secondWord
@@ -954,7 +897,7 @@ func main() { // CLI Merge from REST and P2P (UDP)
 				break
 			}
 			// TODO : allow a list of peers instead of a single one here
-			rest_main(client, listPeersFlag, getPeerAddressesFlag, getPeerKeyFlag, getPeerRootHashFlag, helpFlag, exitFlag, debugmode)
+			rest_main(client, listPeersFlag, getPeerAddressesFlag, getPeerKeyFlag, getPeerRootHashFlag, helpFlag, exitFlag)
 		} else {
 			//latest_req_time := 0 // current time here, used for keepalives
 			// client P2P mode
@@ -984,19 +927,22 @@ func main() { // CLI Merge from REST and P2P (UDP)
 			udp_main(helpFlag, exitFlag, "no_name")
 		}
 		if debugmode {
-			fmt.Println(commandWord + " " + secondWord + " " + thirdWord + " " + fourthWord + " " + fifthWord)
+			fmt.Println("Operation {" + commandWord + " " + secondWord + " " + thirdWord + " " + fourthWord + " " + fifthWord + "} done.")
 		}
 		fmt.Println()
 	}
 }
 
 /*
-	UNUSED FUNCTIONS
+	UNUSED FUNCTIONS FOR NOW
+	(We do not currently store data and don't expect peers to contact us)
+	(We cannot properly contact other peers for now)
+	(We do not support NAT traversal for now)
 */
 
 func buildHelloReply(name string) *HelloExchange {
 	buf := make([]byte, 2)
-	binary.LittleEndian.PutUint16(buf, uint16(len(name)+4)) // +4 for extensions
+	binary.BigEndian.PutUint16(buf, uint16(len(name)+4)) // +4 for extensions
 	return &HelloExchange{
 		Type:   129,
 		Length: buf,
@@ -1004,12 +950,100 @@ func buildHelloReply(name string) *HelloExchange {
 	}
 }
 
-func buildRootRequest(roothash []byte) *P2PRequest { // hash is 32 bytes long
+func buildRootRequest(roothash []byte) *P2PMsg { // hash is 32 bytes long
 	buf := make([]byte, 2)
-	binary.LittleEndian.PutUint16(buf, uint16(32))
-	return &P2PRequest{
+	binary.BigEndian.PutUint16(buf, uint16(32))
+	return &P2PMsg{
 		Type:   4,
 		Length: buf,
 		Body:   roothash,
 	}
 }
+
+func buildPubkeyRequestNoPubkey() *P2PMsg {
+	buf := make([]byte, 2)
+	binary.BigEndian.PutUint16(buf, uint16(0))
+	return &P2PMsg{
+		Type:   3,
+		Length: buf,
+	}
+}
+
+func buildPubkeyRequestWithPubkey(pubkey []byte) *P2PMsg { // pubkey is 64 bytes long
+	buf := make([]byte, 2)
+	binary.BigEndian.PutUint16(buf, uint16(64))
+	return &P2PMsg{
+		Type:   3,
+		Length: buf,
+		Body:   pubkey,
+	}
+}
+
+func buildRootRequestNoData() *P2PMsg {
+	buf := make([]byte, 2)
+	binary.BigEndian.PutUint16(buf, uint16(32))
+	return &P2PMsg{
+		Type:   4,
+		Length: buf,
+		Body:   emptyStringHash,
+	}
+}
+
+/* func buildDatumReply(value []byte) *Datum { // variable length, assumed storable on 2 bytes
+	buf := make([]byte, 2)
+	binary.BigEndian.PutUint16(buf, uint16(len(value)+32)) // add the hash length to the total
+	return &Datum{
+		Type:   132,
+		Length: buf,
+		Hash:   hash(value), // 32 bytes
+		Value:  value,
+	}
+} */
+
+/* func buildNatTraversalRequestIPv4(ipv4addr []byte, port uint16) *P2PMsg {
+	buf := make([]byte, 2)
+	binary.BigEndian.PutUint16(buf, uint16(6)) // ipv4 addr are on 4 bytes, +2 for port
+	buf2 := make([]byte, 2)
+	binary.BigEndian.PutUint16(buf, port)
+	return &P2PMsg{
+		Type:   6,
+		Length: buf,
+		Body:   ipv4addr + buf2,
+	}
+} */
+
+/* func buildNatTraversalRequestIPv6(ipv6addr []byte, port uint16) *P2PMsg {
+	buf := make([]byte, 2)
+	binary.BigEndian.PutUint16(buf, uint16(18)) // ipv6 addr are on 16 bytes, +2 for port
+	buf2 := make([]byte, 2)
+	binary.BigEndian.PutUint16(buf, port)
+	return &P2PMsg{
+		Type:   6,
+		Length: buf,
+		Body:   ipv6addr + buf2,
+	}
+} */
+
+/* func buildNatTraversalReplyIPv4(ipv4addr []byte, port uint16) *P2PMsg {
+	buf := make([]byte, 2)
+	binary.BigEndian.PutUint16(buf, uint16(6)) // ipv4 addr are on 4 bytes, +2 for port
+	buf2 := make([]byte, 2)
+	binary.BigEndian.PutUint16(buf, port)
+	return &P2PMsg{
+		Type:   7,
+		Length: buf,
+		Body:   ipv4addr + buf2,
+	}
+} */
+
+/* func buildNatTraversalReplyIPv6(ipv6addr []byte, port uint16) *P2PMsg {
+	buf := make([]byte, 2)
+	binary.BigEndian.PutUint16(buf, uint16(18)) // ipv6 addr are on 16 bytes, +2 for port
+	buf2 := make([]byte, 2)
+	binary.BigEndian.PutUint16(buf, port)
+	return &P2PMsg{
+		Type:   7,
+		Length: buf,
+		Body:   ipv6addr + buf2,
+	}
+} */
