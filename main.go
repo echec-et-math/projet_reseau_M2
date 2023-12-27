@@ -32,6 +32,8 @@ var emptyStringHash = make([]byte, 32) // TODO
 var serv_addr = "jch.irif.fr:8443"
 var serv_url = "https://jch.irif.fr:8443"
 
+var currentAbr = createDirectory("root")
+
 var debugmode = true  // TODO
 var force_err = false // this forces error-handling routines to happen, even if nothing failed
 
@@ -418,6 +420,38 @@ func verifChunk(content []byte, Hash []byte) bool {
 	}
 
 	return true
+}
+func compareHash(h1 []byte, h2 []byte) bool{
+	if(len(h1) != len(h2)){
+		for i:=0;i<len(h1) ;i++{
+			if(h1[i]!=h2[i]){
+				return false
+			}
+		}
+		return true
+	} else{
+		return false
+	}
+}
+func findNode(Hash []byte, n Node)*Node{
+	if(compareHash(n.Hash,Hash)){
+		return &n
+	}else{
+		for i:=0;i<n.nbchild;i++{
+			tmp:= findNode(Hash,n.Childs[i])
+			if(tmp != nil){
+				return tmp
+			}
+		}
+		return nil
+	}
+}
+func downloadNode(Hash []byte,conn net.Conn)Node{
+	tmp:=buildDatumRequest(Hash)
+	conn.Write(requestToByteSlice(tmp))
+	answer := make([]byte, 1025)
+	conn.Read(answer)
+	return createDirectory("")
 }
 
 /*
