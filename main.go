@@ -9,20 +9,47 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"net"
 	"net/http"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 )
 
 /*
-	REST SECTION
+	GLOBAL VARS
 */
 
+var hasPubKey = false
+var hasFiles = false
+
+var pubkey = make([]byte, 64)
+var roothash = make([]byte, 32)
+
+var emptyStringHash = make([]byte, 32) // TODO
+
+var serv_addr = "jch.irif.fr:8443"
 var serv_url = "https://jch.irif.fr:8443"
 
 var debugmode = true  // TODO
 var force_err = false // this forces error-handling routines to happen, even if nothing failed
+
+func displayError(debugmode bool, packet []byte) {
+	if debugmode && len(packet) >= 5 && packet[4] == 128 {
+		fmt.Println("ErrorReply from server : " + string(packet[7:]))
+	}
+}
+
+func logProgress(debugmode bool, msg string) {
+	if debugmode {
+		fmt.Println(msg)
+	}
+}
+
+/*
+	REST SECTION
+*/
 
 /*
 	REST request builder
@@ -120,6 +147,50 @@ func processGetPeerRootHashResponse(resp *http.Response) {
 	}
 	aux_hash_printer(resp.Body)
 	resp.Body.Close()
+}
+
+/*
+	REST register module
+*/
+
+func registerPeer(conn net.Conn, name string, hasPubkey bool, hasFiles bool, pubkey []byte, roothash []byte, debugmode bool) {
+	// dial server
+	req := buildHelloRequest(name)
+	setHelloId(req, 2)
+	setHelloExtensions(req, 0)
+	conn.Write(helloToByteSlice(req))
+	logProgress(debugmode, "Handshake initiated")
+	rep := make([]byte, 64) // arbitrary : name has no upper bound
+	conn.Read(rep)
+	displayError(debugmode, rep)
+	logProgress(debugmode, "Handshake response received")
+	id := binary.LittleEndian.Uint32(rep[0:4])
+	if id != 2 {
+		fmt.Printf("Warning : unmatching ID in handshake response, expected 2 and got %d\n", id)
+	}
+	pubkeyreq := make([]byte, 64)
+	conn.Read(pubkeyreq)
+	displayError(debugmode, pubkeyreq)
+	logProgress(debugmode, "Pubkey request received")
+	req2 := buildPubkeyReplyNoPubkey()
+	if hasPubkey {
+		req2 = buildPubkeyReplyWithPubkey(pubkey)
+	}
+	setMsgId(req2, 0)
+	conn.Write(requestToByteSlice(req2))
+	logProgress(debugmode, "Provided server with pubkey")
+	roothashreq := make([]byte, 64)
+	conn.Read(roothashreq)
+	displayError(debugmode, roothashreq)
+	logProgress(debugmode, "Root hash request received")
+	req3 := buildRootReply(emptyStringHash)
+	if hasFiles {
+		req3 = buildRootReply(roothash)
+	}
+	setMsgId(req3, 0)
+	conn.Write(requestToByteSlice(req3))
+	logProgress(debugmode, "Provided server with roothash")
+	// maintain connection through goroutine until interruption
 }
 
 /*
@@ -376,16 +447,6 @@ func buildHelloRequest(name string) *HelloExchange {
 	}
 }
 
-func buildHelloReply(name string) *HelloExchange {
-	buf := make([]byte, 2)
-	binary.LittleEndian.PutUint16(buf, uint16(len(name)+4)) // +4 for extensions
-	return &HelloExchange{
-		Type:   129,
-		Length: buf,
-		Name:   []byte(name),
-	}
-}
-
 func buildErrorMessage(msg string) *P2PRequest {
 	buf := make([]byte, 2)
 	binary.LittleEndian.PutUint16(buf, uint16(len(msg)))
@@ -454,16 +515,6 @@ func buildRootRequestNoData() *P2PRequest {
 		Body:   emptyStringHash,
 	}
 } */
-
-func buildRootRequest(roothash []byte) *P2PRequest { // hash is 32 bytes long
-	buf := make([]byte, 2)
-	binary.LittleEndian.PutUint16(buf, uint16(32))
-	return &P2PRequest{
-		Type:   4,
-		Length: buf,
-		Body:   roothash,
-	}
-}
 
 /*
 func buildRootReplyNoData() *P2PRequest {
@@ -560,15 +611,23 @@ func buildDatumRequest(datahash []byte) *P2PRequest { // 32 bytes long
 */
 
 func setHelloId(exchange *HelloExchange, id uint32) {
+	exchange.Id = make([]byte, 4)
 	binary.LittleEndian.PutUint32(exchange.Id, id)
 }
 
 func setDatumId(datum *Datum, id uint32) {
+	datum.Id = make([]byte, 4)
 	binary.LittleEndian.PutUint32(datum.Id, id)
 }
 
 func setMsgId(msg *P2PRequest, id uint32) {
+	msg.Id = make([]byte, 4)
 	binary.LittleEndian.PutUint32(msg.Id, id)
+}
+
+func setHelloExtensions(exchange *HelloExchange, n uint32) {
+	exchange.Extensions = make([]byte, 4)
+	binary.LittleEndian.PutUint32(exchange.Extensions, n)
 }
 
 /* func addHelloSignature(exchange *HelloExchange) {
@@ -587,32 +646,84 @@ func setMsgId(msg *P2PRequest, id uint32) {
 	Custom struct converter for proper UDP datagram communication
 */
 
+func helloToByteSlice(exchange *HelloExchange) []byte {
+	res := make([]byte, 11+len(exchange.Name)+len(exchange.Signature))
+	for i := 0; i < 4; i++ {
+		res[i] = exchange.Id[i]
+	}
+	res[4] = exchange.Type
+	for i := 0; i < 2; i++ {
+		res[5+i] = exchange.Length[i]
+	}
+	for i := 0; i < 4; i++ {
+		res[7+i] = exchange.Extensions[i]
+	}
+	l := len(exchange.Name)
+	for i := 0; i < l; i++ {
+		res[11+i] = exchange.Name[i]
+	}
+	for i := 0; i < len(exchange.Signature); i++ {
+		res[11+l+i] = exchange.Signature[i]
+	}
+	return res
+}
+
+func datumToByteSlice(datum *Datum) []byte {
+	l, _ := strconv.Atoi(string(datum.Length)) // TODO err handling
+	res := make([]byte, 7+l+len(datum.Signature))
+	for i := 0; i < 4; i++ {
+		res[i] = datum.Id[i]
+	}
+	res[4] = datum.Type
+	for i := 0; i < 2; i++ {
+		res[5+i] = datum.Length[i]
+	}
+	for i := 0; i < 32; i++ {
+		res[7+i] = datum.Hash[i]
+	}
+	for i := 0; i < l-32; i++ {
+		res[39+i] = datum.Value[i]
+	}
+	for i := 0; i < len(datum.Signature); i++ {
+		res[7+l+i] = datum.Signature[i]
+	}
+	return res
+}
+
+func requestToByteSlice(req *P2PRequest) []byte {
+	l, _ := strconv.Atoi(string(req.Length)) // TODO err handling
+	res := make([]byte, 7+l+len(req.Signature))
+	for i := 0; i < 4; i++ {
+		res[i] = req.Id[i]
+	}
+	res[4] = req.Type
+	for i := 0; i < 2; i++ {
+		res[5+i] = req.Length[i]
+	}
+	for i := 0; i < l; i++ {
+		res[7+i] = req.Body[i]
+	}
+	for i := 0; i < len(req.Signature); i++ {
+		res[7+l+i] = req.Signature[i]
+	}
+	return res
+}
+
 /*
-func helloToPacket(exchange *HelloExchange) *UDPPacket { // not the right type but you get the idea
-
-}
-
-func datumToPacket(datum *Datum) *UDPPacket {
-
-}
-
-func requestToPacket(req *P2PRequest) *UDPPacket {
-
-}
+	Passive UDP listener
 */
+
+func UDPListener() {
+	// TODO
+	// upon reception of a GetDatum, reply to the peer with arborescence
+}
 
 /*
 	CLI SECTION
 */
 
-func rest_main(listPeersFlag bool, getPeerAddressesFlag string, getPeerKeyFlag string, getPeerRootHashFlag string, helpFlag bool, exitFlag bool, debugmode bool) {
+func rest_main(client *http.Client, listPeersFlag bool, getPeerAddressesFlag string, getPeerKeyFlag string, getPeerRootHashFlag string, helpFlag bool, exitFlag bool, debugmode bool) {
 	// REST CLI
-	transport := &*http.DefaultTransport.(*http.Transport)
-	transport.TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
-	client := &http.Client{
-		Transport: transport,
-		Timeout:   50 * time.Second,
-	}
 	if exitFlag {
 		os.Exit(0)
 	}
@@ -620,14 +731,17 @@ func rest_main(listPeersFlag bool, getPeerAddressesFlag string, getPeerKeyFlag s
 		fmt.Println("Usage for REST mode :")
 		fmt.Println("Several commands can be used, the help command is used by default if none is provided.")
 		fmt.Println("Commands :")
+		// create key command
 		fmt.Println("debugon : enables error display (disabled by default)")
 		fmt.Println("debugoff : disables error display (disabled by default)")
 		fmt.Println("exit : quits the program")
+		// fetchStorage command (updates our hash)
 		fmt.Println("getAddresses [peer_name] : fetches and displays a list of known addresses for a given peer, from the server.")
 		fmt.Println("getKey [peer_name] : fetches and displays the public key of a given peer, from the server.")
 		fmt.Println("getRootHash [peer_name] : fetches and displays the hash of the root of a given peer, from the server.")
 		fmt.Println("help : displays this help and exits. Default behavior.")
 		fmt.Println("list : fetches and displays a list of known peers from the server.")
+		fmt.Println("register : registers ourself to the REST server.")
 		fmt.Println("switchmode : switches into peer-to-peer mode")
 		return
 	}
@@ -711,6 +825,18 @@ func udp_main(helpFlag bool, exitFlag bool, name string) {
 }
 
 func main() { // CLI Merge from REST and P2P (UDP)
+	transport := &*http.DefaultTransport.(*http.Transport)
+	transport.TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
+	client := &http.Client{
+		Transport: transport,
+		Timeout:   50 * time.Second,
+	}
+	conn, err := net.Dial("udp", serv_addr)
+	if err != nil {
+		fmt.Printf("%v\n", err)
+		return
+	}
+	name := "NoName"
 	RESTMode := true
 	listPeersFlag := false
 	getPeerAddressesFlag := ""
@@ -777,6 +903,12 @@ func main() { // CLI Merge from REST and P2P (UDP)
 			case "getRootHash":
 				getPeerRootHashFlag = secondWord
 				break
+			case "register":
+				registerPeer(conn, name, hasPubKey, hasFiles, pubkey, roothash, debugmode)
+				break
+			case "setName":
+				name = secondWord
+				break
 			case "switchmode":
 				RESTMode = false
 				break
@@ -788,7 +920,7 @@ func main() { // CLI Merge from REST and P2P (UDP)
 				break
 			}
 			// TODO : allow a list of peers instead of a single one here
-			rest_main(listPeersFlag, getPeerAddressesFlag, getPeerKeyFlag, getPeerRootHashFlag, helpFlag, exitFlag, debugmode)
+			rest_main(client, listPeersFlag, getPeerAddressesFlag, getPeerKeyFlag, getPeerRootHashFlag, helpFlag, exitFlag, debugmode)
 		} else {
 			//latest_req_time := 0 // current time here, used for keepalives
 			// client P2P mode
@@ -810,6 +942,7 @@ func main() { // CLI Merge from REST and P2P (UDP)
 				break
 			case "op":
 				// need precise parsing of the actual operation here through the secondword, or add additional prompts
+				// in case of connection : maintain the connection with a goroutine
 			default:
 				helpFlag = true
 				break
@@ -820,5 +953,29 @@ func main() { // CLI Merge from REST and P2P (UDP)
 			fmt.Println(commandWord + " " + secondWord + " " + thirdWord + " " + fourthWord + " " + fifthWord)
 		}
 		fmt.Println()
+	}
+}
+
+/*
+	UNUSED FUNCTIONS
+*/
+
+func buildHelloReply(name string) *HelloExchange {
+	buf := make([]byte, 2)
+	binary.LittleEndian.PutUint16(buf, uint16(len(name)+4)) // +4 for extensions
+	return &HelloExchange{
+		Type:   129,
+		Length: buf,
+		Name:   []byte(name),
+	}
+}
+
+func buildRootRequest(roothash []byte) *P2PRequest { // hash is 32 bytes long
+	buf := make([]byte, 2)
+	binary.LittleEndian.PutUint16(buf, uint16(32))
+	return &P2PRequest{
+		Type:   4,
+		Length: buf,
+		Body:   roothash,
 	}
 }
