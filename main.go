@@ -488,6 +488,31 @@ func downloadNode(Hash []byte,conn net.Conn)Node{
 
 }
 
+func sendDatum(n Node, con net.Conn){
+	var data []byte
+
+	if(n.Directory){
+		data[0]=byte(1)
+		for i:=1;i<n.nbchild;i++{
+			data=append(data,([]byte(n.Childs[i].name))...)
+			data=append(data,n.Childs[i].Hash...)
+		}
+		con.Write(data)
+	}
+	if(n.Big){
+		data[0]=byte(1)
+		for i:=1;i<n.nbchild;i++{
+			data=append(data,n.Childs[i].Hash...)
+			
+		}
+		con.Write(data)
+	}else{
+		data[0]=byte(0)
+		data=append(data,n.Data...)
+		con.Write(data)
+	}
+
+}
 /*
 	Request builders for peer-to-peer communication
 */
