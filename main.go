@@ -155,41 +155,38 @@ func processGetPeerRootHashResponse(resp *http.Response) {
 
 func registerPeer(conn net.Conn, name string, hasPubkey bool, hasFiles bool, pubkey []byte, roothash []byte) {
 	// dial server
-	req := buildHelloRequest(name)
-	setHelloId(req, 2)
-	setHelloExtensions(req, 0)
-	conn.Write(helloToByteSlice(req))
-	logProgress(debugmode, "Handshake initiated")
-	rep := make([]byte, 64) // arbitrary : name has no upper bound
-	conn.Read(rep)
-	displayError(debugmode, rep)
-	logProgress(debugmode, "Handshake response received")
-	id := binary.LittleEndian.Uint32(rep[0:4])
-	if id != 2 {
-		fmt.Printf("Warning : unmatching ID in handshake response, expected 2 and got %d\n", id)
+	req := buildHelloRequest(name, 23, 0)
+	if hasPubkey {
+		// sign the Hello
 	}
-	pubkeyreq := make([]byte, 64)
-	conn.Read(pubkeyreq)
-	displayError(debugmode, pubkeyreq)
-	logProgress(debugmode, "Pubkey request received")
+	s := helloToByteSlice(req)
+	conn.Write(s)
+	logProgress("Handshake initiated")
+	rep := readMsgNoSignature(conn)
+	logProgress("Handshake response received")
+	id := binary.BigEndian.Uint32(rep[0:4])
+	if id != 23 {
+		fmt.Printf("Warning : unmatching ID in handshake response, expected 23 and got %d\n", id)
+	}
+	pubkeyreq := readMsgNoSignature(conn)
+	pubkeyid := binary.BigEndian.Uint32(pubkeyreq[0:4])
+	logProgress("Pubkey request received")
 	req2 := buildPubkeyReplyNoPubkey()
 	if hasPubkey {
 		req2 = buildPubkeyReplyWithPubkey(pubkey)
 	}
-	setMsgId(req2, 0)
+	setMsgId(req2, pubkeyid)
 	conn.Write(requestToByteSlice(req2))
-	logProgress(debugmode, "Provided server with pubkey")
-	roothashreq := make([]byte, 64)
-	conn.Read(roothashreq)
-	displayError(debugmode, roothashreq)
-	logProgress(debugmode, "Root hash request received")
+	logProgress("Provided server with pubkey")
+	_ = readMsgNoSignature(conn)
+	logProgress("Root hash request received")
 	req3 := buildRootReply(emptyStringHash)
 	if hasFiles {
 		req3 = buildRootReply(roothash)
 	}
 	setMsgId(req3, 0)
 	conn.Write(requestToByteSlice(req3))
-	logProgress(debugmode, "Provided server with roothash")
+	logProgress("Provided server with roothash")
 	// maintain connection through goroutine until interruption
 }
 
@@ -201,7 +198,7 @@ func registerPeer(conn net.Conn, name string, hasPubkey bool, hasFiles bool, pub
 	Peer-to-peer structs for communication
 */
 
-type P2PRequest struct {
+type P2PMsg struct {
 	Id        []byte // 4 bytes
 	Type      byte
 	Length    []byte // 2 bytes
