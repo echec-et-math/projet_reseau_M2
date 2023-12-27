@@ -917,7 +917,7 @@ func main() { // CLI Merge from REST and P2P (UDP)
 			udp_main(helpFlag, exitFlag, "no_name")
 		}
 		if debugmode {
-			fmt.Println(commandWord + " " + secondWord + " " + thirdWord + " " + fourthWord + " " + fifthWord)
+			fmt.Println("Operation {" + commandWord + " " + secondWord + " " + thirdWord + " " + fourthWord + " " + fifthWord + "} done.")
 		}
 		fmt.Println()
 	}
