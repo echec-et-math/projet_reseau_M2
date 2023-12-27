@@ -426,30 +426,36 @@ func verifChunk(content []byte, Hash []byte) bool {
 
 func buildNoOpRequestOfGivenSize(size uint16) *P2PMsg {
 	buf := make([]byte, 2)
-	binary.LittleEndian.PutUint16(buf, size)
+	binary.BigEndian.PutUint16(buf, size)
 	return &P2PMsg{
 		Length: buf,
 		Body:   make([]byte, size),
 	}
 }
 
-func buildNoOpRequest() *P2PRequest {
+func buildNoOpRequest() *P2PMsg {
 	return buildNoOpRequestOfGivenSize(0)
 }
 
-func buildHelloRequest(name string) *HelloExchange {
-	buf := make([]byte, 2)
-	binary.LittleEndian.PutUint16(buf, uint16(len(name)+4)) // +4 for extensions
+func buildHelloRequest(name string, id uint32, extensions uint32) *HelloExchange {
+	buf := make([]byte, 4)
+	buf2 := make([]byte, 2)
+	buf3 := make([]byte, 4)
+	binary.BigEndian.PutUint32(buf, id)
+	binary.BigEndian.PutUint16(buf2, uint16(len(name)+4)) // +4 for extensions
+	binary.BigEndian.PutUint32(buf3, extensions)
 	return &HelloExchange{
-		Type:   2,
-		Length: buf,
-		Name:   []byte(name),
+		Id:         buf,
+		Type:       2,
+		Length:     buf2,
+		Extensions: buf3,
+		Name:       []byte(name),
 	}
 }
 
 func buildErrorMessage(msg string) *P2PMsg {
 	buf := make([]byte, 2)
-	binary.LittleEndian.PutUint16(buf, uint16(len(msg)))
+	binary.BigEndian.PutUint16(buf, uint16(len(msg)))
 	return &P2PMsg{
 		Type:   1,
 		Length: buf,
@@ -459,7 +465,7 @@ func buildErrorMessage(msg string) *P2PMsg {
 
 func buildErrorReply(msg string) *P2PMsg {
 	buf := make([]byte, 2)
-	binary.LittleEndian.PutUint16(buf, uint16(len(msg)))
+	binary.BigEndian.PutUint16(buf, uint16(len(msg)))
 	return &P2PMsg{
 		Type:   128,
 		Length: buf,
@@ -469,6 +475,7 @@ func buildErrorReply(msg string) *P2PMsg {
 
 func buildPubkeyReplyNoPubkey() *P2PMsg {
 	buf := make([]byte, 2)
+	binary.BigEndian.PutUint16(buf, uint16(0))
 	return &P2PMsg{
 		Type:   130,
 		Length: buf,
@@ -477,7 +484,7 @@ func buildPubkeyReplyNoPubkey() *P2PMsg {
 
 func buildPubkeyReplyWithPubkey(pubkey []byte) *P2PMsg { // pubkey is 64 bytes long
 	buf := make([]byte, 2)
-	binary.LittleEndian.PutUint16(buf, uint16(64))
+	binary.BigEndian.PutUint16(buf, uint16(64))
 	return &P2PMsg{
 		Type:   130,
 		Length: buf,
@@ -488,6 +495,7 @@ func buildPubkeyReplyWithPubkey(pubkey []byte) *P2PMsg { // pubkey is 64 bytes l
 /*
 func buildRootReplyNoData() *P2PMsg {
 	buf := make([]byte, 2)
+	binary.BigEndian.PutUint16(buf, uint16(32))
 	return &P2PMsg{
 		Type:   131,
 		Length: buf,
@@ -497,7 +505,7 @@ func buildRootReplyNoData() *P2PMsg {
 
 func buildRootReply(roothash []byte) *P2PMsg { // hash is 32 bytes long
 	buf := make([]byte, 2)
-	binary.LittleEndian.PutUint16(buf, uint16(32))
+	binary.BigEndian.PutUint16(buf, uint16(32))
 	return &P2PMsg{
 		Type:   131,
 		Length: buf,
@@ -507,7 +515,7 @@ func buildRootReply(roothash []byte) *P2PMsg { // hash is 32 bytes long
 
 func buildDatumRequest(datahash []byte) *P2PMsg { // 32 bytes long
 	buf := make([]byte, 2)
-	binary.LittleEndian.PutUint16(buf, uint16(32))
+	binary.BigEndian.PutUint16(buf, uint16(32))
 	return &P2PMsg{
 		Type:   5,
 		Length: buf,
@@ -515,87 +523,28 @@ func buildDatumRequest(datahash []byte) *P2PMsg { // 32 bytes long
 	}
 }
 
-/* func buildDatumReply(value []byte) *Datum { // variable length, assumed storable on 2 bytes
-	buf := make([]byte, 2)
-	binary.LittleEndian.PutUint16(buf, uint16(len(value)+32)) // add the hash length to the total
-	return &Datum{
-		Type:   132,
-		Length: buf,
-		Hash:   hash(value), // 32 bytes
-		Value:  value,
-	}
-} */
-
-/* func buildNatTraversalRequestIPv4(ipv4addr []byte, port uint16) *P2PRequest {
-	buf := make([]byte, 2)
-	binary.LittleEndian.PutUint16(buf, uint16(6)) // ipv4 addr are on 4 bytes, +2 for port
-	buf2 := make([]byte, 2)
-	binary.LittleEndian.PutUint16(buf, port)
-	return &P2PRequest{
-		Type:   6,
-		Length: buf,
-		Body:   ipv4addr + buf2,
-	}
-} */
-
-/* func buildNatTraversalRequestIPv6(ipv6addr []byte, port uint16) *P2PRequest {
-	buf := make([]byte, 2)
-	binary.LittleEndian.PutUint16(buf, uint16(18)) // ipv6 addr are on 16 bytes, +2 for port
-	buf2 := make([]byte, 2)
-	binary.LittleEndian.PutUint16(buf, port)
-	return &P2PRequest{
-		Type:   6,
-		Length: buf,
-		Body:   ipv6addr + buf2,
-	}
-} */
-
-/* func buildNatTraversalReplyIPv4(ipv4addr []byte, port uint16) *P2PRequest {
-	buf := make([]byte, 2)
-	binary.LittleEndian.PutUint16(buf, uint16(6)) // ipv4 addr are on 4 bytes, +2 for port
-	buf2 := make([]byte, 2)
-	binary.LittleEndian.PutUint16(buf, port)
-	return &P2PRequest{
-		Type:   7,
-		Length: buf,
-		Body:   ipv4addr + buf2,
-	}
-} */
-
-/* func buildNatTraversalReplyIPv6(ipv6addr []byte, port uint16) *P2PRequest {
-	buf := make([]byte, 2)
-	binary.LittleEndian.PutUint16(buf, uint16(18)) // ipv6 addr are on 16 bytes, +2 for port
-	buf2 := make([]byte, 2)
-	binary.LittleEndian.PutUint16(buf, port)
-	return &P2PRequest{
-		Type:   7,
-		Length: buf,
-		Body:   ipv6addr + buf2,
-	}
-} */
-
 /*
 	Setters for additional info throughout the requests
 */
 
 func setHelloId(exchange *HelloExchange, id uint32) {
 	exchange.Id = make([]byte, 4)
-	binary.LittleEndian.PutUint32(exchange.Id, id)
+	binary.BigEndian.PutUint32(exchange.Id, id)
 }
 
 func setDatumId(datum *Datum, id uint32) {
 	datum.Id = make([]byte, 4)
-	binary.LittleEndian.PutUint32(datum.Id, id)
+	binary.BigEndian.PutUint32(datum.Id, id)
 }
 
 func setMsgId(msg *P2PMsg, id uint32) {
 	msg.Id = make([]byte, 4)
-	binary.LittleEndian.PutUint32(msg.Id, id)
+	binary.BigEndian.PutUint32(msg.Id, id)
 }
 
 func setHelloExtensions(exchange *HelloExchange, n uint32) {
 	exchange.Extensions = make([]byte, 4)
-	binary.LittleEndian.PutUint32(exchange.Extensions, n)
+	binary.BigEndian.PutUint32(exchange.Extensions, n)
 }
 
 /* func addHelloSignature(exchange *HelloExchange) {
@@ -720,7 +669,7 @@ func readMsgWithSignature(conn net.Conn) []byte {
 	CLI SECTION
 */
 
-func rest_main(client *http.Client, listPeersFlag bool, getPeerAddressesFlag string, getPeerKeyFlag string, getPeerRootHashFlag string, helpFlag bool, exitFlag bool, debugmode bool) {
+func rest_main(client *http.Client, listPeersFlag bool, getPeerAddressesFlag string, getPeerKeyFlag string, getPeerRootHashFlag string, helpFlag bool, exitFlag bool) {
 	// REST CLI
 	if exitFlag {
 		os.Exit(0)
