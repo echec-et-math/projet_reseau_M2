@@ -35,13 +35,13 @@ var serv_url = "https://jch.irif.fr:8443"
 var debugmode = true  // TODO
 var force_err = false // this forces error-handling routines to happen, even if nothing failed
 
-func displayError(debugmode bool, packet []byte) {
+func displayError(packet []byte) {
 	if debugmode && len(packet) >= 5 && packet[4] == 128 {
 		fmt.Println("ErrorReply from server : " + string(packet[7:]))
 	}
 }
 
-func logProgress(debugmode bool, msg string) {
+func logProgress(msg string) {
 	if debugmode {
 		fmt.Println(msg)
 	}
@@ -153,7 +153,7 @@ func processGetPeerRootHashResponse(resp *http.Response) {
 	REST register module
 */
 
-func registerPeer(conn net.Conn, name string, hasPubkey bool, hasFiles bool, pubkey []byte, roothash []byte, debugmode bool) {
+func registerPeer(conn net.Conn, name string, hasPubkey bool, hasFiles bool, pubkey []byte, roothash []byte) {
 	// dial server
 	req := buildHelloRequest(name)
 	setHelloId(req, 2)
@@ -844,7 +844,6 @@ func main() { // CLI Merge from REST and P2P (UDP)
 	getPeerRootHashFlag := ""
 	helpFlag := false
 	exitFlag := false
-	debugmode := false
 	//name := "" // client name for registration (TODO)
 	reader := bufio.NewReader(os.Stdin)
 	for {
@@ -904,7 +903,7 @@ func main() { // CLI Merge from REST and P2P (UDP)
 				getPeerRootHashFlag = secondWord
 				break
 			case "register":
-				registerPeer(conn, name, hasPubKey, hasFiles, pubkey, roothash, debugmode)
+				registerPeer(conn, name, hasPubKey, hasFiles, pubkey, roothash)
 				break
 			case "setName":
 				name = secondWord
@@ -920,7 +919,7 @@ func main() { // CLI Merge from REST and P2P (UDP)
 				break
 			}
 			// TODO : allow a list of peers instead of a single one here
-			rest_main(client, listPeersFlag, getPeerAddressesFlag, getPeerKeyFlag, getPeerRootHashFlag, helpFlag, exitFlag, debugmode)
+			rest_main(client, listPeersFlag, getPeerAddressesFlag, getPeerKeyFlag, getPeerRootHashFlag, helpFlag, exitFlag)
 		} else {
 			//latest_req_time := 0 // current time here, used for keepalives
 			// client P2P mode
