@@ -424,10 +424,10 @@ func verifChunk(content []byte, Hash []byte) bool {
 	Request builders for peer-to-peer communication
 */
 
-func buildNoOpRequestOfGivenSize(size uint16) *P2PRequest {
+func buildNoOpRequestOfGivenSize(size uint16) *P2PMsg {
 	buf := make([]byte, 2)
 	binary.LittleEndian.PutUint16(buf, size)
-	return &P2PRequest{
+	return &P2PMsg{
 		Length: buf,
 		Body:   make([]byte, size),
 	}
@@ -447,58 +447,38 @@ func buildHelloRequest(name string) *HelloExchange {
 	}
 }
 
-func buildErrorMessage(msg string) *P2PRequest {
+func buildErrorMessage(msg string) *P2PMsg {
 	buf := make([]byte, 2)
 	binary.LittleEndian.PutUint16(buf, uint16(len(msg)))
-	return &P2PRequest{
+	return &P2PMsg{
 		Type:   1,
 		Length: buf,
 		Body:   []byte(msg),
 	}
 }
 
-func buildErrorReply(msg string) *P2PRequest {
+func buildErrorReply(msg string) *P2PMsg {
 	buf := make([]byte, 2)
 	binary.LittleEndian.PutUint16(buf, uint16(len(msg)))
-	return &P2PRequest{
+	return &P2PMsg{
 		Type:   128,
 		Length: buf,
 		Body:   []byte(msg),
 	}
 }
 
-func buildPubkeyRequestNoPubkey() *P2PRequest {
+func buildPubkeyReplyNoPubkey() *P2PMsg {
 	buf := make([]byte, 2)
-	binary.LittleEndian.PutUint16(buf, uint16(0))
-	return &P2PRequest{
-		Type:   3,
-		Length: buf,
-	}
-}
-
-func buildPubkeyRequestWithPubkey(pubkey []byte) *P2PRequest { // pubkey is 64 bytes long
-	buf := make([]byte, 2)
-	binary.LittleEndian.PutUint16(buf, uint16(64))
-	return &P2PRequest{
-		Type:   3,
-		Length: buf,
-		Body:   pubkey,
-	}
-}
-
-func buildPubkeyReplyNoPubkey() *P2PRequest {
-	buf := make([]byte, 2)
-	binary.LittleEndian.PutUint16(buf, uint16(0))
-	return &P2PRequest{
+	return &P2PMsg{
 		Type:   130,
 		Length: buf,
 	}
 }
 
-func buildPubkeyReplyWithPubkey(pubkey []byte) *P2PRequest { // pubkey is 64 bytes long
+func buildPubkeyReplyWithPubkey(pubkey []byte) *P2PMsg { // pubkey is 64 bytes long
 	buf := make([]byte, 2)
 	binary.LittleEndian.PutUint16(buf, uint16(64))
-	return &P2PRequest{
+	return &P2PMsg{
 		Type:   130,
 		Length: buf,
 		Body:   pubkey,
@@ -506,41 +486,29 @@ func buildPubkeyReplyWithPubkey(pubkey []byte) *P2PRequest { // pubkey is 64 byt
 }
 
 /*
-func buildRootRequestNoData() *P2PRequest {
+func buildRootReplyNoData() *P2PMsg {
 	buf := make([]byte, 2)
-	binary.LittleEndian.PutUint16(buf, uint16(32))
-	return &P2PRequest{
-		Type:   4,
-		Length: buf,
-		Body:   emptyStringHash,
-	}
-} */
-
-/*
-func buildRootReplyNoData() *P2PRequest {
-	buf := make([]byte, 2)
-	binary.LittleEndian.PutUint16(buf, uint16(32))
-	return &P2PRequest{
+	return &P2PMsg{
 		Type:   131,
 		Length: buf,
 		Body:   emptyStringHash,
 	}
 } */
 
-func buildRootReply(roothash []byte) *P2PRequest { // hash is 32 bytes long
+func buildRootReply(roothash []byte) *P2PMsg { // hash is 32 bytes long
 	buf := make([]byte, 2)
 	binary.LittleEndian.PutUint16(buf, uint16(32))
-	return &P2PRequest{
+	return &P2PMsg{
 		Type:   131,
 		Length: buf,
 		Body:   roothash,
 	}
 }
 
-func buildDatumRequest(datahash []byte) *P2PRequest { // 32 bytes long
+func buildDatumRequest(datahash []byte) *P2PMsg { // 32 bytes long
 	buf := make([]byte, 2)
 	binary.LittleEndian.PutUint16(buf, uint16(32))
-	return &P2PRequest{
+	return &P2PMsg{
 		Type:   5,
 		Length: buf,
 		Body:   datahash,
@@ -620,7 +588,7 @@ func setDatumId(datum *Datum, id uint32) {
 	binary.LittleEndian.PutUint32(datum.Id, id)
 }
 
-func setMsgId(msg *P2PRequest, id uint32) {
+func setMsgId(msg *P2PMsg, id uint32) {
 	msg.Id = make([]byte, 4)
 	binary.LittleEndian.PutUint32(msg.Id, id)
 }
@@ -638,7 +606,7 @@ func setHelloExtensions(exchange *HelloExchange, n uint32) {
 	datum.Signature = blablabla // TODO
 } */
 
-/* func addMsgSignature(msg *P2PRequest) {
+/* func addMsgSignature(msg *P2PMsg) {
 	msg.Signature = blablabla // TODO
 } */
 
@@ -690,7 +658,7 @@ func datumToByteSlice(datum *Datum) []byte {
 	return res
 }
 
-func requestToByteSlice(req *P2PRequest) []byte {
+func requestToByteSlice(req *P2PMsg) []byte {
 	l, _ := strconv.Atoi(string(req.Length)) // TODO err handling
 	res := make([]byte, 7+l+len(req.Signature))
 	for i := 0; i < 4; i++ {
@@ -969,12 +937,23 @@ func buildHelloReply(name string) *HelloExchange {
 	}
 }
 
-func buildRootRequest(roothash []byte) *P2PRequest { // hash is 32 bytes long
+func buildRootRequest(roothash []byte) *P2PMsg { // hash is 32 bytes long
 	buf := make([]byte, 2)
 	binary.LittleEndian.PutUint16(buf, uint16(32))
-	return &P2PRequest{
+	return &P2PMsg{
 		Type:   4,
 		Length: buf,
 		Body:   roothash,
 	}
 }
+
+func buildPubkeyRequestNoPubkey() *P2PMsg {
+	buf := make([]byte, 2)
+	return &P2PMsg{
+		Type:   3,
+func buildPubkeyRequestWithPubkey(pubkey []byte) *P2PMsg { // pubkey is 64 bytes long
+	buf := make([]byte, 2)
+func buildRootRequestNoData() *P2PMsg {
+	buf := make([]byte, 2)
+	return &P2PMsg{
+		Type:   4,
