@@ -687,6 +687,36 @@ func UDPListener() {
 }
 
 /*
+	UDP readers
+*/
+
+func readMsgNoSignature(conn net.Conn) []byte {
+	// first read until the length
+	header := make([]byte, 7)
+	conn.Read(header)
+	length := binary.BigEndian.Uint16(header[5:7])
+	content := make([]byte, length)
+	conn.Read(content)
+	res := append(header, content...)
+	displayError(res)
+	return res
+}
+
+func readMsgWithSignature(conn net.Conn) []byte {
+	// first read until the length
+	header := make([]byte, 7)
+	conn.Read(header)
+	length := binary.BigEndian.Uint16(header[5:7])
+	content := make([]byte, length)
+	conn.Read(content)
+	signature := make([]byte, 64)
+	conn.Read(signature)
+	res := append(append(header, content...), signature...)
+	displayError(res)
+	return res
+}
+
+/*
 	CLI SECTION
 */
 
