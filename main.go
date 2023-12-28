@@ -34,11 +34,16 @@ var serv_url = "https://jch.irif.fr:8443"
 
 var currentAbr = createDirectory("root")
 
+var currentP2PConn net.Conn
+var connectedToPeer = false
+
+var signaturemode = false
+
 var debugmode = true  // TODO
 var force_err = false // this forces error-handling routines to happen, even if nothing failed
 
 func displayError(packet []byte) {
-	if debugmode && len(packet) >= 5 && packet[4] == 128 {
+	if (debugmode && len(packet) >= 5 && packet[4] == 128) || force_err {
 		fmt.Println("ErrorReply from server : " + string(packet[7:]))
 	}
 }
@@ -157,18 +162,30 @@ func processGetPeerRootHashResponse(resp *http.Response) {
 
 func registerPeer(conn net.Conn, name string, hasPubkey bool, hasFiles bool, pubkey []byte, roothash []byte) {
 	// dial server
-	req := buildHelloRequest(name, 23, 0)
-	if hasPubkey {
-		// sign the Hello
-	}
-	s := helloToByteSlice(req)
-	conn.Write(s)
-	logProgress("Handshake initiated")
-	rep := readMsgNoSignature(conn)
-	logProgress("Handshake response received")
-	id := binary.BigEndian.Uint32(rep[0:4])
-	if id != 23 {
-		fmt.Printf("Warning : unmatching ID in handshake response, expected 23 and got %d\n", id)
+	for {
+		req := buildHelloRequest(name, 23, 0)
+		if hasPubkey {
+			// sign the Hello
+		}
+		s := helloToByteSlice(req)
+		conn.Write(s)
+		logProgress("Handshake initiated")
+		rep := readMsgNoSignature(conn)
+		logProgress("Handshake response received")
+		id := binary.BigEndian.Uint32(rep[0:4])
+		if id != 23 || force_err {
+			if debugmode {
+				fmt.Printf("Warning : unmatching ID in handshake response, expected 23 and got %d\n", id)
+				fmt.Println("Our request : " + string(helloToByteSlice(req)))
+				fmt.Println("Full hex representation of our request : " + hex.EncodeToString(helloToByteSlice(req)))
+				fmt.Println("Server reply : " + string(rep))
+				fmt.Println("Full hex representation of the reply : " + hex.EncodeToString(rep))
+			}
+			fmt.Println("Handshake failed, retrying.")
+		} else {
+			logProgress("Handshake successful.")
+			break
+		}
 	}
 	pubkeyreq := readMsgNoSignature(conn)
 	pubkeyid := binary.BigEndian.Uint32(pubkeyreq[0:4])
@@ -418,69 +435,69 @@ func verifChunk(content []byte, Hash []byte) bool {
 
 	return true
 }
-func compareHash(h1 []byte, h2 []byte) bool{
-	if(len(h1) != len(h2)){
-		for i:=0;i<len(h1) ;i++{
-			if(h1[i]!=h2[i]){
+func compareHash(h1 []byte, h2 []byte) bool {
+	if len(h1) != len(h2) {
+		for i := 0; i < len(h1); i++ {
+			if h1[i] != h2[i] {
 				return false
 			}
 		}
 		return true
-	} else{
+	} else {
 		return false
 	}
 }
-func findNode(Hash []byte, n Node)*Node{
-	if(compareHash(n.Hash,Hash)){
+func findNode(Hash []byte, n Node) *Node {
+	if compareHash(n.Hash, Hash) {
 		return &n
-	}else{
-		for i:=0;i<n.nbchild;i++{
-			tmp:= findNode(Hash,n.Childs[i])
-			if(tmp != nil){
+	} else {
+		for i := 0; i < n.nbchild; i++ {
+			tmp := findNode(Hash, n.Childs[i])
+			if tmp != nil {
 				return tmp
 			}
 		}
 		return nil
 	}
 }
-func downloadNode(Hash []byte,conn net.Conn)Node{
-	tmp:=buildDatumRequest(Hash)
+func downloadNode(Hash []byte, conn net.Conn) Node {
+	tmp := buildDatumRequest(Hash)
 	conn.Write(requestToByteSlice(tmp))
 	answer := make([]byte, 1)
 	conn.Read(answer)
-	if(int(answer[0])==0){
+	if int(answer[0]) == 0 {
 		//chunk
-		data:= make([]byte,1024)
+		data := make([]byte, 1024)
 		conn.Read(data)
-		createChunk(data,1024)//TODO faire un truc qui detecte la vraie longueur des donné
+		createChunk(data, 1024) //TODO faire un truc qui detecte la vraie longueur des donné
 	}
-	if(int(answer[0])==1){
+	if int(answer[0]) == 1 {
 		//big
-		hash:=make([]byte,32)
+		hash := make([]byte, 32)
 		conn.Read(hash)
 		var bf []Node
-		for i:=0;i<32;i++{
-			bf=append(bf,downloadNode(hash,conn))
+		for i := 0; i < 32; i++ {
+			bf = append(bf, downloadNode(hash, conn))
 			conn.Read(hash)
-			if(int(hash[0])==0){
+			if int(hash[0]) == 0 {
 				break
 			}
 		}
-		return createBigFile(bf,len(bf))
+		return createBigFile(bf, len(bf))
 	}
-	if(int(answer[0])==2){
+	if int(answer[0]) == 2 {
 		//directory
-		n:=createDirectory("")
-		name:=make([]byte,32)
-		hash:=make([]byte,32)
-		for i:=0;i<16;i++{
+		n := createDirectory("")
+		name := make([]byte, 32)
+		hash := make([]byte, 32)
+		for i := 0; i < 16; i++ {
 			conn.Read(name)
 			conn.Read(hash)
-			if(int(hash[0])==0){
+			if int(hash[0]) == 0 {
 				break
 			}
-			AddChild(n,downloadNode(hash,conn))
-			n.Childs[i].name=string(name)
+			AddChild(n, downloadNode(hash, conn))
+			n.Childs[i].name = string(name)
 		}
 		return n
 	}
@@ -488,46 +505,50 @@ func downloadNode(Hash []byte,conn net.Conn)Node{
 
 }
 
-func sendDatum(n Node, con net.Conn){
+func sendDatum(n Node, con net.Conn) {
 	var data []byte
 
-	if(n.Directory){
-		data[0]=byte(1)
-		for i:=1;i<n.nbchild;i++{
-			data=append(data,([]byte(n.Childs[i].name))...)
-			data=append(data,n.Childs[i].Hash...)
+	if n.Directory {
+		data[0] = byte(1)
+		for i := 1; i < n.nbchild; i++ {
+			data = append(data, ([]byte(n.Childs[i].name))...)
+			data = append(data, n.Childs[i].Hash...)
 		}
 		con.Write(data)
 	}
-	if(n.Big){
-		data[0]=byte(1)
-		for i:=1;i<n.nbchild;i++{
-			data=append(data,n.Childs[i].Hash...)
-			
+	if n.Big {
+		data[0] = byte(1)
+		for i := 1; i < n.nbchild; i++ {
+			data = append(data, n.Childs[i].Hash...)
+
 		}
 		con.Write(data)
-	}else{
-		data[0]=byte(0)
-		data=append(data,n.Data...)
+	} else {
+		data[0] = byte(0)
+		data = append(data, n.Data...)
 		con.Write(data)
 	}
 
 }
+
 /*
 	Request builders for peer-to-peer communication
 */
 
-func buildNoOpRequestOfGivenSize(size uint16) *P2PMsg {
-	buf := make([]byte, 2)
-	binary.BigEndian.PutUint16(buf, size)
+func buildNoOpRequestOfGivenSize(size uint16, id uint32) *P2PMsg {
+	buf := make([]byte, 4)
+	buf2 := make([]byte, 2)
+	binary.BigEndian.PutUint32(buf, id)
+	binary.BigEndian.PutUint16(buf2, size)
 	return &P2PMsg{
-		Length: buf,
+		Id : buf
+		Length: buf2,
 		Body:   make([]byte, size),
 	}
 }
 
-func buildNoOpRequest() *P2PMsg {
-	return buildNoOpRequestOfGivenSize(0)
+func buildNoOpRequest(id uint32) *P2PMsg {
+	return buildNoOpRequestOfGivenSize(0, id)
 }
 
 func buildHelloRequest(name string, id uint32, extensions uint32) *HelloExchange {
@@ -546,41 +567,53 @@ func buildHelloRequest(name string, id uint32, extensions uint32) *HelloExchange
 	}
 }
 
-func buildErrorMessage(msg string) *P2PMsg {
-	buf := make([]byte, 2)
+func buildErrorMessage(msg string, id uint32) *P2PMsg {
+	buf := make([]byte, 4)
+	buf2 := make([]byte, 2)
+	binary.BigEndian.PutUint32(buf, id)
 	binary.BigEndian.PutUint16(buf, uint16(len(msg)))
 	return &P2PMsg{
+		Id: buf,
 		Type:   1,
-		Length: buf,
+		Length: buf2,
 		Body:   []byte(msg),
 	}
 }
 
-func buildErrorReply(msg string) *P2PMsg {
-	buf := make([]byte, 2)
+func buildErrorReply(msg string, id uint32) *P2PMsg {
+	buf := make([]byte, 4)
+	buf2 := make([]byte, 2)
+	binary.BigEndian.PutUint32(buf, id)
 	binary.BigEndian.PutUint16(buf, uint16(len(msg)))
 	return &P2PMsg{
+		Id: buf,
 		Type:   128,
-		Length: buf,
+		Length: buf2,
 		Body:   []byte(msg),
 	}
 }
 
-func buildPubkeyReplyNoPubkey() *P2PMsg {
-	buf := make([]byte, 2)
+func buildPubkeyReplyNoPubkey(id uint32) *P2PMsg {
+	buf := make([]byte, 4)
+	buf2 := make([]byte, 2)
+	binary.BigEndian.PutUint32(buf, id)
 	binary.BigEndian.PutUint16(buf, uint16(0))
 	return &P2PMsg{
+		Id: buf,
 		Type:   130,
-		Length: buf,
+		Length: buf2,
 	}
 }
 
-func buildPubkeyReplyWithPubkey(pubkey []byte) *P2PMsg { // pubkey is 64 bytes long
-	buf := make([]byte, 2)
+func buildPubkeyReplyWithPubkey(pubkey []byte, id uint32) *P2PMsg { // pubkey is 64 bytes long
+	buf := make([]byte, 4)
+	buf2 := make([]byte, 2)
+	binary.BigEndian.PutUint32(buf, id)
 	binary.BigEndian.PutUint16(buf, uint16(64))
 	return &P2PMsg{
+		Id: buf,
 		Type:   130,
-		Length: buf,
+		Length: buf2,
 		Body:   pubkey,
 	}
 }
@@ -596,23 +629,29 @@ func buildRootReplyNoData() *P2PMsg {
 	}
 } */
 
-func buildRootReply(roothash []byte) *P2PMsg { // hash is 32 bytes long
-	buf := make([]byte, 2)
+func buildRootReply(roothash []byte, id uint32) *P2PMsg { // hash is 32 bytes long
+	buf := make([]byte, 4)
+	buf2 := make([]byte, 2)
+	binary.BigEndian.PutUint32(buf, id)
 	binary.BigEndian.PutUint16(buf, uint16(32))
 	return &P2PMsg{
+		Id: buf,
 		Type:   131,
-		Length: buf,
+		Length: buf2,
 		Body:   roothash,
 	}
 }
 
-func buildDatumRequest(datahash []byte) *P2PMsg { // 32 bytes long
-	buf := make([]byte, 2)
+func buildDatumRequest(datahash []byte, id uint32) *P2PMsg { // 32 bytes long
+	buf := make([]byte, 4)
+	buf2 := make([]byte, 2)
+	binary.BigEndian.PutUint32(buf, id)
 	binary.BigEndian.PutUint16(buf, uint16(32))
 	return &P2PMsg{
+		Id: buf,
 		Type:   5,
-		Length: buf,
-		Body:   datahash,
+		Length: buf2,
+		Body:   hash,
 	}
 }
 
@@ -774,6 +813,8 @@ func rest_main(client *http.Client, listPeersFlag bool, getPeerAddressesFlag str
 		// create key command
 		fmt.Println("debugon : enables error display (disabled by default)")
 		fmt.Println("debugoff : disables error display (disabled by default)")
+		fmt.Println("forceerron : simulates an error in every critical section (disabled by default)")
+		fmt.Println("forceerroff : stops simulating an error in every critical section (disabled by default)")
 		fmt.Println("exit : quits the program")
 		// fetchStorage command (updates our hash)
 		fmt.Println("getAddresses [peer_name] : fetches and displays a list of known addresses for a given peer, from the server.")
@@ -782,6 +823,9 @@ func rest_main(client *http.Client, listPeersFlag bool, getPeerAddressesFlag str
 		fmt.Println("help : displays this help and exits. Default behavior.")
 		fmt.Println("list : fetches and displays a list of known peers from the server.")
 		fmt.Println("register : registers ourself to the REST server.")
+		fmt.Println("setName [name] : changes your name as seen by the REST server.")
+		fmt.Println("signatureon : enables signatures during exchanges. Disabled by default.")
+		fmt.Println("signatureoff : disables signatures during exchanges. Disabled by default.")
 		fmt.Println("switchmode : switches into peer-to-peer mode")
 		return
 	}
@@ -854,9 +898,19 @@ func udp_main(helpFlag bool, exitFlag bool, name string) {
 		fmt.Println("Usage for P2P (UDP) mode :")
 		fmt.Println("Several commands can be used, the help command is used by default if none is provided.")
 		fmt.Println("Commands :")
+		fmt.Println("debugon : enables error display (disabled by default)")
+		fmt.Println("debugoff : disables error display (disabled by default)")
+		fmt.Println("forceerron : simulates an error in every critical section (disabled by default)")
+		fmt.Println("forceerroff : stops simulating an error in every critical section (disabled by default)")
+		fmt.Println("connect [addr]: connects to a peer given its address. It is recommended to check the root hash of this peer beforehand, and its public key if you plan to encrypt your data.")
+		fmt.Println("disconnect : closes the connection to the current peer.")
 		fmt.Println("exit : quits the program")
 		fmt.Println("help : displays this help and exits. Default behavior.")
-		fmt.Println("switchmode : switches into REST mode")
+		fmt.Println("setName [name] : changes your name as seen by the peers.")
+		fmt.Println("signatureon : enables signatures during exchanges. Disabled by default.")
+		fmt.Println("signatureoff : disables signatures during exchanges. Disabled by default.")
+		fmt.Println("switchmode : switches back into REST mode AND deconnects.")
+		fmt.Println("op [operation...] : if connected, executes an operation. See below for details.")
 		return
 	} else {
 		a := createFile("projet.pdf")
@@ -930,6 +984,12 @@ func main() { // CLI Merge from REST and P2P (UDP)
 			case "debugoff":
 				debugmode = false
 				break
+			case "forceerron":
+				force_err = true
+				break
+			case "forceerroff":
+				force_err = false
+				break
 			case "list":
 				listPeersFlag = true
 				break
@@ -947,6 +1007,12 @@ func main() { // CLI Merge from REST and P2P (UDP)
 				break
 			case "setName":
 				name = secondWord
+				break
+			case "signatureon":
+				signaturemode = true
+				break
+			case "signatureoff":
+				signaturemode = false
 				break
 			case "switchmode":
 				RESTMode = false
@@ -966,6 +1032,21 @@ func main() { // CLI Merge from REST and P2P (UDP)
 			// read user input
 			switch commandWord {
 			case "connect":
+				if connectedToPeer {
+					fmt.Println("Already connected to someone : please disconnect beforehand.")
+					break
+				}
+				currentP2PConn, err = net.Dial("udp", secondWord)
+				if err != nil {
+					fmt.Println("Error connecting to the peer.")
+					if debugmode {
+						log.Fatal(err)
+					}
+				} else {
+					connectedToPeer = true
+					fmt.Println("Successfully connected to peer.")
+				}
+				// TODO maintain connection
 				break
 			case "debugon":
 				debugmode = true
@@ -973,20 +1054,51 @@ func main() { // CLI Merge from REST and P2P (UDP)
 			case "debugoff":
 				debugmode = false
 				break
+			case "forceerron":
+				force_err = true
+				break
+			case "forceerroff":
+				force_err = false
+				break
 			case "disconnect":
+				if connectedToPeer {
+					conn.Close()
+					connectedToPeer = false
+				}
 				RESTMode = true
 				break
+			case "download":
+				if !connectedToPeer {
+					fmt.Println("We're not currently connected to a peer !")
+				} else {
+					byteslice, _ := hex.DecodeString(secondWord)
+					downloadNode(byteslice, currentP2PConn)
+				}
 			case "exit":
 				exitFlag = true
 				break
 			case "op":
+				if !connectedToPeer {
+					fmt.Println("We're not currently connected to a peer !")
+				} else {
+					break // TODO
+				}
 				// need precise parsing of the actual operation here through the secondword, or add additional prompts
 				// in case of connection : maintain the connection with a goroutine
+			case "setName":
+				name = secondWord
+				break
+			case "signatureon":
+				signaturemode = true
+				break
+			case "signatureoff":
+				signaturemode = false
+				break
 			default:
 				helpFlag = true
 				break
 			}
-			udp_main(helpFlag, exitFlag, "no_name")
+			udp_main(helpFlag, exitFlag, name)
 		}
 		if debugmode {
 			fmt.Println("Operation {" + commandWord + " " + secondWord + " " + thirdWord + " " + fourthWord + " " + fifthWord + "} done.")
