@@ -190,20 +190,20 @@ func registerPeer(conn net.Conn, name string, hasPubkey bool, hasFiles bool, pub
 	pubkeyreq := readMsgNoSignature(conn)
 	pubkeyid := binary.BigEndian.Uint32(pubkeyreq[0:4])
 	logProgress("Pubkey request received")
-	req2 := buildPubkeyReplyNoPubkey()
+	req2 := buildPubkeyReplyNoPubkey(pubkeyid)
 	if hasPubkey {
-		req2 = buildPubkeyReplyWithPubkey(pubkey)
+		req2 = buildPubkeyReplyWithPubkey(pubkey, pubkeyid)
 	}
-	setMsgId(req2, pubkeyid)
 	conn.Write(requestToByteSlice(req2))
 	logProgress("Provided server with pubkey")
 	_ = readMsgNoSignature(conn)
+	roothashreq := readMsgNoSignature(conn)
+	roothashid := binary.BigEndian.Uint32(roothashreq[0:4])
 	logProgress("Root hash request received")
-	req3 := buildRootReply(emptyStringHash)
+	req3 := buildRootReply(emptyStringHash, roothashid)
 	if hasFiles {
-		req3 = buildRootReply(roothash)
+		req3 = buildRootReply(roothash, roothashid)
 	}
-	setMsgId(req3, 0)
 	conn.Write(requestToByteSlice(req3))
 	logProgress("Provided server with roothash")
 	// maintain connection through goroutine until interruption
@@ -461,7 +461,7 @@ func findNode(Hash []byte, n Node) *Node {
 	}
 }
 func downloadNode(Hash []byte, conn net.Conn) Node {
-	tmp := buildDatumRequest(Hash)
+	tmp := buildDatumRequest(Hash) // TODO
 	conn.Write(requestToByteSlice(tmp))
 	answer := make([]byte, 1)
 	conn.Read(answer)
@@ -541,7 +541,7 @@ func buildNoOpRequestOfGivenSize(size uint16, id uint32) *P2PMsg {
 	binary.BigEndian.PutUint32(buf, id)
 	binary.BigEndian.PutUint16(buf2, size)
 	return &P2PMsg{
-		Id : buf
+		Id:     buf,
 		Length: buf2,
 		Body:   make([]byte, size),
 	}
@@ -573,7 +573,7 @@ func buildErrorMessage(msg string, id uint32) *P2PMsg {
 	binary.BigEndian.PutUint32(buf, id)
 	binary.BigEndian.PutUint16(buf, uint16(len(msg)))
 	return &P2PMsg{
-		Id: buf,
+		Id:     buf,
 		Type:   1,
 		Length: buf2,
 		Body:   []byte(msg),
@@ -586,7 +586,7 @@ func buildErrorReply(msg string, id uint32) *P2PMsg {
 	binary.BigEndian.PutUint32(buf, id)
 	binary.BigEndian.PutUint16(buf, uint16(len(msg)))
 	return &P2PMsg{
-		Id: buf,
+		Id:     buf,
 		Type:   128,
 		Length: buf2,
 		Body:   []byte(msg),
@@ -599,7 +599,7 @@ func buildPubkeyReplyNoPubkey(id uint32) *P2PMsg {
 	binary.BigEndian.PutUint32(buf, id)
 	binary.BigEndian.PutUint16(buf, uint16(0))
 	return &P2PMsg{
-		Id: buf,
+		Id:     buf,
 		Type:   130,
 		Length: buf2,
 	}
@@ -611,7 +611,7 @@ func buildPubkeyReplyWithPubkey(pubkey []byte, id uint32) *P2PMsg { // pubkey is
 	binary.BigEndian.PutUint32(buf, id)
 	binary.BigEndian.PutUint16(buf, uint16(64))
 	return &P2PMsg{
-		Id: buf,
+		Id:     buf,
 		Type:   130,
 		Length: buf2,
 		Body:   pubkey,
@@ -635,7 +635,7 @@ func buildRootReply(roothash []byte, id uint32) *P2PMsg { // hash is 32 bytes lo
 	binary.BigEndian.PutUint32(buf, id)
 	binary.BigEndian.PutUint16(buf, uint16(32))
 	return &P2PMsg{
-		Id: buf,
+		Id:     buf,
 		Type:   131,
 		Length: buf2,
 		Body:   roothash,
@@ -648,10 +648,10 @@ func buildDatumRequest(datahash []byte, id uint32) *P2PMsg { // 32 bytes long
 	binary.BigEndian.PutUint32(buf, id)
 	binary.BigEndian.PutUint16(buf, uint16(32))
 	return &P2PMsg{
-		Id: buf,
+		Id:     buf,
 		Type:   5,
 		Length: buf2,
-		Body:   hash,
+		Body:   datahash,
 	}
 }
 
