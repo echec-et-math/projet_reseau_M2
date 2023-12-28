@@ -461,25 +461,32 @@ func findNode(Hash []byte, n Node) *Node {
 	}
 }
 func downloadNode(Hash []byte, conn net.Conn) Node {
+	logProgress("test")
 	tmp := buildDatumRequest(Hash, 89) // TODO
+	fmt.Println("byteArray: ", requestToByteSlice(tmp))
+	logProgress(string(requestToByteSlice(tmp)))
 	conn.Write(requestToByteSlice(tmp))
 	answer := make([]byte, 1)
 	conn.Read(answer)
+	logProgress("test")
 	if int(answer[0]) == 0 {
 		//chunk
 		data := make([]byte, 1024)
 		conn.Read(data)
-		createChunk(data, 1024) //TODO faire un truc qui detecte la vraie longueur des donné
+		logProgress("un chunk de load")
+
+		return createChunk(data, 1024) //TODO faire un truc qui detecte la vraie longueur des donné
+		 
 	}
 	if int(answer[0]) == 1 {
 		//big
-		hash := make([]byte, 32)
-		conn.Read(hash)
+		h := make([]byte, 32)
+		conn.Read(h)
 		var bf []Node
 		for i := 0; i < 32; i++ {
-			bf = append(bf, downloadNode(hash, conn))
-			conn.Read(hash)
-			if int(hash[0]) == 0 {
+			bf = append(bf, downloadNode(h, conn))
+			conn.Read(h)
+			if int(h[0]) == 0 {
 				break
 			}
 		}
@@ -489,18 +496,19 @@ func downloadNode(Hash []byte, conn net.Conn) Node {
 		//directory
 		n := createDirectory("")
 		name := make([]byte, 32)
-		hash := make([]byte, 32)
+		h := make([]byte, 32)
 		for i := 0; i < 16; i++ {
 			conn.Read(name)
-			conn.Read(hash)
-			if int(hash[0]) == 0 {
+			conn.Read(h)
+			if int(h[0]) == 0 {
 				break
 			}
-			AddChild(n, downloadNode(hash, conn))
+			AddChild(n, downloadNode(h, conn))
 			n.Childs[i].name = string(name)
 		}
 		return n
 	}
+	logProgress("ya un blem")
 	return createDirectory("")
 
 }
@@ -1072,6 +1080,7 @@ func main() { // CLI Merge from REST and P2P (UDP)
 					fmt.Println("We're not currently connected to a peer !")
 				} else {
 					byteslice, _ := hex.DecodeString(secondWord)
+					logProgress("on vas demander un download")
 					downloadNode(byteslice, currentP2PConn)
 				}
 			case "exit":
