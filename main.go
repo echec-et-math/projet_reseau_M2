@@ -461,7 +461,7 @@ func findNode(Hash []byte, n Node) *Node {
 	}
 }
 func downloadNode(Hash []byte, conn net.Conn) Node {
-	tmp := buildDatumRequest(Hash) // TODO
+	tmp := buildDatumRequest(Hash, 89) // TODO
 	conn.Write(requestToByteSlice(tmp))
 	answer := make([]byte, 1)
 	conn.Read(answer)
