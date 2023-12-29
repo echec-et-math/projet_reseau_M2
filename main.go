@@ -46,6 +46,8 @@ var signaturemode = false
 var debugmode = true  // TODO
 var force_err = false // this forces error-handling routines to happen, even if nothing failed
 
+var client *http.Client
+
 func displayError(packet []byte) {
 	if (debugmode && len(packet) >= 5 && packet[4] == 128) || force_err {
 		fmt.Println("ErrorReply from server : " + string(packet[7:]))
@@ -211,6 +213,38 @@ func registerPeer(conn net.Conn, name string, hasPubkey bool, hasFiles bool, pub
 	conn.Write(requestToByteSlice(req3))
 	logProgress("Provided server with roothash")
 	// maintain connection through goroutine until interruption
+}
+
+/*
+	REST macro to check if someone has a declared pubkey.
+	If someone writes to us and we do implement signatures,
+	we HAVE to check if they have a declared pubkey.
+	If they do, we have to reject any unsigned or badly signed message of types :
+	Hello / HelloReply / PublicKey / PublicKeyReply / Root / RootReply
+*/
+
+func fetchPubKey(name string) ([]byte, bool) {
+	res := make([]byte, 64)
+	req := buildGetPeerPubkeyRequest(name)
+	resp, err := client.Do(req)
+	if err != nil {
+		log.Fatal("Error fetching server for pubkey")
+		return res, false
+	}
+	if resp.StatusCode == http.StatusNotFound { // 404
+		return res, false
+	}
+	if resp.StatusCode == http.StatusNoContent { // 204
+		return res, false
+	}
+	text, err := io.ReadAll(resp.Body)
+	if err != nil {
+		log.Fatal("Failed parsing the pubkey")
+		return res, false
+	}
+	resp.Body.Close()
+	res = append(res, text...)
+	return res, true
 }
 
 /*
@@ -520,8 +554,9 @@ func findNode(Hash []byte, n Node) *Node {
 	}
 }
 func downloadNode(Hash []byte, conn net.Conn) Node {
+	logProgress("Asking for hash : " + string(hex.EncodeToString(Hash)))
 	logProgress("test")
-	tmp := buildDatumRequest(Hash, 89) // TODO
+	tmp := buildDatumRequest(Hash, 89)
 	fmt.Println("byteArray: ", requestToByteSlice(tmp))
 	logProgress(string(requestToByteSlice(tmp)))
 	conn.Write(requestToByteSlice(tmp))
@@ -638,7 +673,7 @@ func buildErrorMessage(msg string, id uint32) *P2PMsg {
 	buf := make([]byte, 4)
 	buf2 := make([]byte, 2)
 	binary.BigEndian.PutUint32(buf, id)
-	binary.BigEndian.PutUint16(buf, uint16(len(msg)))
+	binary.BigEndian.PutUint16(buf2, uint16(len(msg)))
 	return &P2PMsg{
 		Id:     buf,
 		Type:   1,
@@ -651,7 +686,7 @@ func buildErrorReply(msg string, id uint32) *P2PMsg {
 	buf := make([]byte, 4)
 	buf2 := make([]byte, 2)
 	binary.BigEndian.PutUint32(buf, id)
-	binary.BigEndian.PutUint16(buf, uint16(len(msg)))
+	binary.BigEndian.PutUint16(buf2, uint16(len(msg)))
 	return &P2PMsg{
 		Id:     buf,
 		Type:   128,
@@ -664,7 +699,7 @@ func buildPubkeyReplyNoPubkey(id uint32) *P2PMsg {
 	buf := make([]byte, 4)
 	buf2 := make([]byte, 2)
 	binary.BigEndian.PutUint32(buf, id)
-	binary.BigEndian.PutUint16(buf, uint16(0))
+	binary.BigEndian.PutUint16(buf2, uint16(0))
 	return &P2PMsg{
 		Id:     buf,
 		Type:   130,
@@ -676,7 +711,7 @@ func buildPubkeyReplyWithPubkey(pubkey []byte, id uint32) *P2PMsg { // pubkey is
 	buf := make([]byte, 4)
 	buf2 := make([]byte, 2)
 	binary.BigEndian.PutUint32(buf, id)
-	binary.BigEndian.PutUint16(buf, uint16(64))
+	binary.BigEndian.PutUint16(buf2, uint16(64))
 	return &P2PMsg{
 		Id:     buf,
 		Type:   130,
@@ -700,7 +735,7 @@ func buildRootReply(roothash []byte, id uint32) *P2PMsg { // hash is 32 bytes lo
 	buf := make([]byte, 4)
 	buf2 := make([]byte, 2)
 	binary.BigEndian.PutUint32(buf, id)
-	binary.BigEndian.PutUint16(buf, uint16(32))
+	binary.BigEndian.PutUint16(buf2, uint16(32))
 	return &P2PMsg{
 		Id:     buf,
 		Type:   131,
@@ -710,10 +745,11 @@ func buildRootReply(roothash []byte, id uint32) *P2PMsg { // hash is 32 bytes lo
 }
 
 func buildDatumRequest(datahash []byte, id uint32) *P2PMsg { // 32 bytes long
+	logProgress("Building Datum request for hash : " + string(hex.EncodeToString(datahash)))
 	buf := make([]byte, 4)
 	buf2 := make([]byte, 2)
 	binary.BigEndian.PutUint32(buf, id)
-	binary.BigEndian.PutUint16(buf, uint16(32))
+	binary.BigEndian.PutUint16(buf2, uint16(32))
 	return &P2PMsg{
 		Id:     buf,
 		Type:   5,
@@ -807,8 +843,9 @@ func datumToByteSlice(datum *Datum) []byte {
 }
 
 func requestToByteSlice(req *P2PMsg) []byte {
-	l, _ := strconv.Atoi(string(req.Length)) // TODO err handling
-	res := make([]byte, 7+l+len(req.Signature))
+	l := binary.BigEndian.Uint16(req.Length) // TODO err handling
+	fmt.Printf("Found length of %d\n", l)
+	res := make([]byte, uint16(7)+l+uint16(len(req.Signature)))
 	for i := 0; i < 4; i++ {
 		res[i] = req.Id[i]
 	}
@@ -816,11 +853,11 @@ func requestToByteSlice(req *P2PMsg) []byte {
 	for i := 0; i < 2; i++ {
 		res[5+i] = req.Length[i]
 	}
-	for i := 0; i < l; i++ {
+	for i := 0; uint16(i) < l; i++ {
 		res[7+i] = req.Body[i]
 	}
 	for i := 0; i < len(req.Signature); i++ {
-		res[7+l+i] = req.Signature[i]
+		res[uint16(7)+l+uint16(i)] = req.Signature[i]
 	}
 	return res
 }
@@ -868,7 +905,7 @@ func readMsgWithSignature(conn net.Conn) []byte {
 	CLI SECTION
 */
 
-func rest_main(client *http.Client, listPeersFlag bool, getPeerAddressesFlag string, getPeerKeyFlag string, getPeerRootHashFlag string, helpFlag bool, exitFlag bool) {
+func rest_main(listPeersFlag bool, getPeerAddressesFlag string, getPeerKeyFlag string, getPeerRootHashFlag string, helpFlag bool, exitFlag bool) {
 	// REST CLI
 	if exitFlag {
 		os.Exit(0)
@@ -885,6 +922,7 @@ func rest_main(client *http.Client, listPeersFlag bool, getPeerAddressesFlag str
 		fmt.Println("exit : quits the program")
 		// fetchStorage command (updates our hash)
 		fmt.Println("getAddresses [peer_name] : fetches and displays a list of known addresses for a given peer, from the server.")
+		fmt.Println("generateKey : generates a new key, displays it. DOES NOT AUTOMATICALLY TURN ON SIGNATURE MODE.")
 		fmt.Println("getKey [peer_name] : fetches and displays the public key of a given peer, from the server.")
 		fmt.Println("getRootHash [peer_name] : fetches and displays the hash of the root of a given peer, from the server.")
 		fmt.Println("help : displays this help and exits. Default behavior.")
@@ -944,20 +982,6 @@ func rest_main(client *http.Client, listPeersFlag bool, getPeerAddressesFlag str
 
 func udp_main(helpFlag bool, exitFlag bool, name string) {
 	// P2P CLI (TODO)
-
-	// s := ""
-
-	// h := sha256.New()
-
-	// h.Write([]byte(s))
-
-	// bs := h.Sum(nil)
-	// h.Write(bs)
-	// ba := h.Sum(nil)
-
-	// fmt.Println(s)
-	// fmt.Printf("%x\n", bs)
-	// fmt.Printf("%x\n", ba)
 	if exitFlag {
 		os.Exit(0)
 	}
@@ -988,7 +1012,7 @@ func udp_main(helpFlag bool, exitFlag bool, name string) {
 func main() { // CLI Merge from REST and P2P (UDP)
 	transport := &*http.DefaultTransport.(*http.Transport)
 	transport.TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
-	client := &http.Client{
+	client = &http.Client{
 		Transport: transport,
 		Timeout:   50 * time.Second,
 	}
@@ -1005,7 +1029,6 @@ func main() { // CLI Merge from REST and P2P (UDP)
 	getPeerRootHashFlag := ""
 	helpFlag := false
 	exitFlag := false
-	//name := "" // client name for registration (TODO)
 	reader := bufio.NewReader(os.Stdin)
 	for {
 		commandWord := ""
@@ -1063,6 +1086,11 @@ func main() { // CLI Merge from REST and P2P (UDP)
 			case "getAddresses":
 				getPeerAddressesFlag = secondWord
 				break
+			case "generateKey":
+				privkey := privKeyGen()
+				pubkey := computePubKey(privkey)
+				fmt.Println("Public key : " + string(hex.EncodeToString(pubkeyToByteSlice(pubkey))))
+				break
 			case "getKey":
 				getPeerKeyFlag = secondWord
 				break
@@ -1092,7 +1120,7 @@ func main() { // CLI Merge from REST and P2P (UDP)
 				break
 			}
 			// TODO : allow a list of peers instead of a single one here
-			rest_main(client, listPeersFlag, getPeerAddressesFlag, getPeerKeyFlag, getPeerRootHashFlag, helpFlag, exitFlag)
+			rest_main(listPeersFlag, getPeerAddressesFlag, getPeerKeyFlag, getPeerRootHashFlag, helpFlag, exitFlag)
 		} else {
 			//latest_req_time := 0 // current time here, used for keepalives
 			// client P2P mode
@@ -1242,50 +1270,50 @@ func buildRootRequestNoData() *P2PMsg {
 	}
 } */
 
-/* func buildNatTraversalRequestIPv4(ipv4addr []byte, port uint16) *P2PMsg {
+func buildNatTraversalRequestIPv4(ipv4addr []byte, port uint16) *P2PMsg {
 	buf := make([]byte, 2)
 	binary.BigEndian.PutUint16(buf, uint16(6)) // ipv4 addr are on 4 bytes, +2 for port
 	buf2 := make([]byte, 2)
-	binary.BigEndian.PutUint16(buf, port)
+	binary.BigEndian.PutUint16(buf2, port)
 	return &P2PMsg{
 		Type:   6,
 		Length: buf,
-		Body:   ipv4addr + buf2,
+		Body:   append(ipv4addr, buf2...),
 	}
-} */
+}
 
-/* func buildNatTraversalRequestIPv6(ipv6addr []byte, port uint16) *P2PMsg {
+func buildNatTraversalRequestIPv6(ipv6addr []byte, port uint16) *P2PMsg {
 	buf := make([]byte, 2)
 	binary.BigEndian.PutUint16(buf, uint16(18)) // ipv6 addr are on 16 bytes, +2 for port
 	buf2 := make([]byte, 2)
-	binary.BigEndian.PutUint16(buf, port)
+	binary.BigEndian.PutUint16(buf2, port)
 	return &P2PMsg{
 		Type:   6,
 		Length: buf,
-		Body:   ipv6addr + buf2,
+		Body:   append(ipv6addr, buf2...),
 	}
-} */
+}
 
-/* func buildNatTraversalReplyIPv4(ipv4addr []byte, port uint16) *P2PMsg {
+func buildNatTraversalReplyIPv4(ipv4addr []byte, port uint16) *P2PMsg {
 	buf := make([]byte, 2)
 	binary.BigEndian.PutUint16(buf, uint16(6)) // ipv4 addr are on 4 bytes, +2 for port
 	buf2 := make([]byte, 2)
-	binary.BigEndian.PutUint16(buf, port)
+	binary.BigEndian.PutUint16(buf2, port)
 	return &P2PMsg{
 		Type:   7,
 		Length: buf,
-		Body:   ipv4addr + buf2,
+		Body:   append(ipv4addr, buf2...),
 	}
-} */
+}
 
-/* func buildNatTraversalReplyIPv6(ipv6addr []byte, port uint16) *P2PMsg {
+func buildNatTraversalReplyIPv6(ipv6addr []byte, port uint16) *P2PMsg {
 	buf := make([]byte, 2)
 	binary.BigEndian.PutUint16(buf, uint16(18)) // ipv6 addr are on 16 bytes, +2 for port
 	buf2 := make([]byte, 2)
-	binary.BigEndian.PutUint16(buf, port)
+	binary.BigEndian.PutUint16(buf2, port)
 	return &P2PMsg{
 		Type:   7,
 		Length: buf,
-		Body:   ipv6addr + buf2,
+		Body:   append(ipv6addr, buf2...),
 	}
-} */
+}
