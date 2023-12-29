@@ -554,15 +554,33 @@ func findNode(Hash []byte, n Node) *Node {
 	}
 }
 func downloadNode(Hash []byte, conn net.Conn) Node {
+	currentP2PConn.SetReadDeadline(time.Time{})
 	logProgress("Asking for hash : " + string(hex.EncodeToString(Hash)))
 	tmp := buildDatumRequest(Hash, 89)
 	conn.Write(requestToByteSlice(tmp))
 	answer := make([]byte, 40)
-	conn.Read(answer)
-
+	for {
+		answer = make([]byte, 40) // fully reset buffer
+		conn.Read(answer)
+		msgtype := answer[4]
+		if debugmode {
+			fmt.Printf("Download Node : found message type of %d\n", msgtype)
+		}
+		if msgtype == 132 { // Datum
+			break
+		}
+		displayError(answer)
+	}
 	logProgress("test")
-	length := binary.BigEndian.Uint16(answer[5:6])
-	if int(answer[39]) == 0 {
+	length := binary.BigEndian.Uint16(answer[5:7])
+	if debugmode {
+		fmt.Printf("Download Node : found length of %d\n", length)
+	}
+	datatype := answer[39]
+	if debugmode {
+		fmt.Printf("Download Node : found datatype of %d\n", datatype)
+	}
+	if datatype == 0 {
 		//chunk
 		data := make([]byte, length-33)
 		conn.Read(data)
@@ -571,7 +589,7 @@ func downloadNode(Hash []byte, conn net.Conn) Node {
 		return createChunk(data, 1024) //TODO faire un truc qui detecte la vraie longueur des donné
 
 	}
-	if int(answer[39]) == 1 {
+	if datatype == 1 {
 		//big
 		h := make([]byte, length-33)
 		conn.Read(h)
@@ -584,18 +602,18 @@ func downloadNode(Hash []byte, conn net.Conn) Node {
 		}
 		return createBigFile(bf, len(bf))
 	}
-	if int(answer[39]) == 2 {
+	if datatype == 2 {
 		//directory
 		n := createDirectory("")
 
 		tmp := make([]byte, length-33)
 		conn.Read(tmp)
-		name:= make([]byte, 32)
+		name := make([]byte, 32)
 		h := make([]byte, 32)
 
 		for i := 0; i < 16; i++ {
-			name=tmp[i*32*2:(i+1)*32*2]
-			h=tmp[(i+1)*32*2:(i+2)*32*2]
+			name = tmp[i*32*2 : (i+1)*32*2]
+			h = tmp[(i+1)*32*2 : (i+2)*32*2]
 			if int(h[0]) == 0 {
 				break
 			}
@@ -607,6 +625,77 @@ func downloadNode(Hash []byte, conn net.Conn) Node {
 	logProgress("ya un blem")
 	return createDirectory("")
 
+}
+
+func salute(name string) {
+	for {
+		req := buildHelloRequest(name, 153, 0)
+		currentP2PConn.Write(helloToByteSlice(req))
+		rep := readMsgNoSignature(currentP2PConn) // TODO signature mode. We read the HelloReply.
+		repid := binary.BigEndian.Uint32(rep[0:4])
+		if repid == 153 { // handshake ok
+			break
+		}
+	}
+	currentP2PConn.SetReadDeadline(time.Now().Add(time.Second * 5)) // accept a one-minute delay for pubkey or roothash
+	for {
+		req := readMsgNoSignature(currentP2PConn) // read for a PublicKey or a Root
+		if len(req) == 0 {
+			// empty message
+			return
+		}
+		reqtype := req[4]
+		reqid := binary.BigEndian.Uint32(req[0:4])
+		if reqtype == 3 { // PublicKey
+			rep := buildPubkeyReplyNoPubkey(reqid) // TODO dignature
+			currentP2PConn.Write(requestToByteSlice(rep))
+			break
+		}
+		if reqtype == 4 { // Root
+			rep := buildRootReply(emptyStringHash, reqid)
+			currentP2PConn.Write(requestToByteSlice(rep))
+			break
+		}
+	}
+	for {
+		req := readMsgNoSignature(currentP2PConn) // read for a PublicKey or a Root
+		if len(req) == 0 {
+			// empty message
+			return
+		}
+		reqtype := req[4]
+		reqid := binary.BigEndian.Uint32(req[0:4])
+		if reqtype == 3 { // PublicKey
+			rep := buildPubkeyReplyNoPubkey(reqid) // TODO dignature
+			currentP2PConn.Write(requestToByteSlice(rep))
+			break
+		}
+		if reqtype == 4 { // Root
+			rep := buildRootReply(emptyStringHash, reqid)
+			currentP2PConn.Write(requestToByteSlice(rep))
+			break
+		}
+	}
+	for {
+		req := readMsgNoSignature(currentP2PConn) // read for a PublicKey or a Root
+		if len(req) == 0 {
+			// empty message
+			return
+		}
+		reqtype := req[4]
+		reqid := binary.BigEndian.Uint32(req[0:4])
+		if reqtype == 3 { // PublicKey
+			rep := buildPubkeyReplyNoPubkey(reqid) // TODO dignature
+			currentP2PConn.Write(requestToByteSlice(rep))
+			break
+		}
+		if reqtype == 4 { // Root
+			rep := buildRootReply(emptyStringHash, reqid)
+			currentP2PConn.Write(requestToByteSlice(rep))
+			break
+		}
+	}
+	// We put the block three times to process a pubkey, a NoOp, and a root at most. That's not optimal.
 }
 
 func sendDatum(n Node, con net.Conn) {
@@ -628,14 +717,14 @@ func sendDatum(n Node, con net.Conn) {
 	} else {
 		data[0] = byte(0)
 		data = append(data, n.Data...)
-		
+
 	}
-	tmp:= make([]byte, 2)
-	binary.LittleEndian.PutUint16(tmp,uint16(len(data)+32))
-	datum:=&Datum{
-		Length    :tmp,
-		Hash      : n.Hash,
-		Value     : data,
+	tmp := make([]byte, 2)
+	binary.LittleEndian.PutUint16(tmp, uint16(len(data)+32))
+	datum := &Datum{
+		Length: tmp,
+		Hash:   n.Hash,
+		Value:  data,
 	}
 
 	con.Write(datumToByteSlice(datum))
@@ -887,12 +976,26 @@ func UDPListener() {
 func readMsgNoSignature(conn net.Conn) []byte {
 	// first read until the length
 	header := make([]byte, 7)
-	conn.Read(header)
+	_, err := conn.Read(header)
+	if err != nil || force_err {
+		logProgress("Error reading from UDP socket")
+		e := err.(net.Error)
+		if e.Timeout() || force_err {
+			logProgress("Connection timeout : returning an empty message.")
+			return make([]byte, 0)
+		}
+	}
+	msgtype := header[4]
 	length := binary.BigEndian.Uint16(header[5:7])
 	content := make([]byte, length)
 	conn.Read(content)
 	res := append(header, content...)
 	displayError(res)
+	if msgtype == 0 {
+		// NoOp
+		logProgress("Read NoOp message : skipping.")
+		return readMsgNoSignature(conn)
+	}
 	return res
 }
 
@@ -900,6 +1003,7 @@ func readMsgWithSignature(conn net.Conn) []byte {
 	// first read until the length
 	header := make([]byte, 7)
 	conn.Read(header)
+	msgtype := header[4]
 	length := binary.BigEndian.Uint16(header[5:7])
 	content := make([]byte, length)
 	conn.Read(content)
@@ -907,6 +1011,11 @@ func readMsgWithSignature(conn net.Conn) []byte {
 	conn.Read(signature)
 	res := append(append(header, content...), signature...)
 	displayError(res)
+	if msgtype == 0 {
+		// NoOp
+		logProgress("Read NoOp message : skipping.")
+		return readMsgNoSignature(conn)
+	}
 	return res
 }
 
@@ -1147,6 +1256,7 @@ func main() { // CLI Merge from REST and P2P (UDP)
 						log.Fatal(err)
 					}
 				} else {
+					salute(name)
 					connectedToPeer = true
 					fmt.Println("Successfully connected to peer.")
 				}
