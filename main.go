@@ -618,7 +618,6 @@ func sendDatum(n Node, con net.Conn) {
 			data = append(data, ([]byte(n.Childs[i].name))...)
 			data = append(data, n.Childs[i].Hash...)
 		}
-		con.Write(data)
 	}
 	if n.Big {
 		data[0] = byte(1)
@@ -626,12 +625,20 @@ func sendDatum(n Node, con net.Conn) {
 			data = append(data, n.Childs[i].Hash...)
 
 		}
-		con.Write(data)
 	} else {
 		data[0] = byte(0)
 		data = append(data, n.Data...)
-		con.Write(data)
+		
 	}
+	tmp:= make([]byte, 2)
+	binary.LittleEndian.PutUint16(tmp,uint16(len(data)+32))
+	datum:=&Datum{
+		Length    :tmp,
+		Hash      : n.Hash,
+		Value     : data,
+	}
+
+	con.Write(datumToByteSlice(datum))
 
 }
 
