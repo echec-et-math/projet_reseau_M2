@@ -85,7 +85,7 @@ func rest_main(listPeersFlag bool, getPeerAddressesFlag string, getPeerKeyFlag s
 	}
 }
 
-func udp_main(helpFlag bool, exitFlag bool, name string) {
+func udp_main(helpFlag bool, exitFlag bool) {
 	// P2P CLI (TODO)
 	if exitFlag {
 		os.Exit(0)

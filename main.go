@@ -41,9 +41,11 @@ var force_err = false // this forces error-handling routines to happen, even if 
 
 var client *http.Client
 
+var name = "NoName"
+
 func displayError(packet []byte) {
-	if (debugmode && len(packet) >= 5 && packet[4] == 128) || force_err {
-		fmt.Println("ErrorReply from server : " + string(packet[7:]))
+	if (debugmode && len(packet) >= 5 && (packet[4] == 128 || packet[4] == 1)) || force_err {
+		fmt.Println("Error / ErrorReply from server : " + string(packet[7:]))
 	}
 }
 
@@ -118,7 +120,6 @@ func main() { // CLI Merge from REST and P2P (UDP)
 		fmt.Printf("%v\n", err)
 		return
 	}
-	name := "NoName"
 	RESTMode := true
 	listPeersFlag := false
 	getPeerAddressesFlag := ""
@@ -292,7 +293,7 @@ func main() { // CLI Merge from REST and P2P (UDP)
 				helpFlag = true
 				break
 			}
-			udp_main(helpFlag, exitFlag, name)
+			udp_main(helpFlag, exitFlag)
 		}
 		if debugmode {
 			fmt.Println("Operation {" + commandWord + " " + secondWord + " " + thirdWord + " " + fourthWord + " " + fifthWord + "} done.")

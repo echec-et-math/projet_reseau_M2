@@ -137,7 +137,7 @@ func buildDatumRequest(datahash []byte, id uint32) *P2PMsg { // 32 bytes long
 	(We do not support NAT traversal for now)
 */
 
-func buildHelloReply(name string) *HelloExchange {
+func buildHelloReply(id uint32) *HelloExchange {
 	buf := make([]byte, 2)
 	binary.BigEndian.PutUint16(buf, uint16(len(name)+4)) // +4 for extensions
 	return &HelloExchange{

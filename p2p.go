@@ -73,16 +73,47 @@ func readMsgNoSignature(conn net.Conn) []byte {
 			return make([]byte, 0)
 		}
 	}
+	msgid := binary.BigEndian.Uint32(header[0:4])
 	msgtype := header[4]
 	length := binary.BigEndian.Uint16(header[5:7])
 	content := make([]byte, length)
 	conn.Read(content)
 	res := append(header, content...)
 	displayError(res)
-	if msgtype == 0 {
+	switch msgtype {
+	case 0:
 		// NoOp
 		logProgress("Read NoOp message : skipping.")
 		return readMsgNoSignature(conn)
+	case 1:
+		// Error
+		logProgress("Read an Error : reading again.")
+		return readMsgNoSignature(conn)
+	case 2:
+		// Hello
+		rep := buildHelloReply(msgid)
+		conn.Write(helloToByteSlice(rep))
+		return readMsgNoSignature(conn)
+	case 3:
+		// PublicKey
+		rep := buildPubkeyReplyNoPubkey(msgid)
+		conn.Write(requestToByteSlice(rep))
+		return readMsgNoSignature(conn)
+	case 4:
+		// Root
+		rep := buildRootReply(emptyStringHash, msgid)
+		conn.Write(requestToByteSlice(rep))
+		return readMsgNoSignature(conn)
+	case 5:
+		// Datum
+		// TODO
+		break
+	case 6:
+		// NAT Traversal Request
+		// TODO
+		break
+	default:
+		break
 	}
 	return res
 }
@@ -90,19 +121,56 @@ func readMsgNoSignature(conn net.Conn) []byte {
 func readMsgWithSignature(conn net.Conn) []byte {
 	// first read until the length
 	header := make([]byte, 7)
-	conn.Read(header)
+	_, err := conn.Read(header)
+	if err != nil || force_err {
+		logProgress("Error reading from UDP socket")
+		e := err.(net.Error)
+		if e.Timeout() || force_err {
+			logProgress("Connection timeout : returning an empty message.")
+			return make([]byte, 0)
+		}
+	}
+	msgid := binary.BigEndian.Uint32(header[0:4])
 	msgtype := header[4]
 	length := binary.BigEndian.Uint16(header[5:7])
 	content := make([]byte, length)
 	conn.Read(content)
-	signature := make([]byte, 64)
-	conn.Read(signature)
-	res := append(append(header, content...), signature...)
+	res := append(header, content...)
 	displayError(res)
-	if msgtype == 0 {
+	switch msgtype {
+	case 0:
 		// NoOp
 		logProgress("Read NoOp message : skipping.")
-		return readMsgNoSignature(conn)
+		return readMsgWithSignature(conn)
+	case 1:
+		// Error
+		logProgress("Read an Error : reading again.")
+		return readMsgWithSignature(conn)
+	case 2:
+		// Hello
+		rep := buildHelloReply(msgid)
+		conn.Write(helloToByteSlice(rep))
+		return readMsgWithSignature(conn)
+	case 3:
+		// PublicKey
+		rep := buildPubkeyReplyNoPubkey(msgid)
+		conn.Write(requestToByteSlice(rep))
+		return readMsgWithSignature(conn)
+	case 4:
+		// Root
+		rep := buildRootReply(emptyStringHash, msgid)
+		conn.Write(requestToByteSlice(rep))
+		return readMsgWithSignature(conn)
+	case 5:
+		// Datum
+		// TODO
+		break
+	case 6:
+		// NAT Traversal Request
+		// TODO
+		break
+	default:
+		break
 	}
 	return res
 }
@@ -298,61 +366,9 @@ func salute(name string) {
 	}
 	currentP2PConn.SetReadDeadline(time.Now().Add(time.Second * 5)) // accept a one-minute delay for pubkey or roothash
 	for {
-		req := readMsgNoSignature(currentP2PConn) // read for a PublicKey or a Root
-		if len(req) == 0 {
-			// empty message
+		msg := readMsgNoSignature(currentP2PConn) // listen a bit
+		if len(msg) == 0 {
 			return
 		}
-		reqtype := req[4]
-		reqid := binary.BigEndian.Uint32(req[0:4])
-		if reqtype == 3 { // PublicKey
-			rep := buildPubkeyReplyNoPubkey(reqid) // TODO dignature
-			currentP2PConn.Write(requestToByteSlice(rep))
-			break
-		}
-		if reqtype == 4 { // Root
-			rep := buildRootReply(emptyStringHash, reqid)
-			currentP2PConn.Write(requestToByteSlice(rep))
-			break
-		}
 	}
-	for {
-		req := readMsgNoSignature(currentP2PConn) // read for a PublicKey or a Root
-		if len(req) == 0 {
-			// empty message
-			return
-		}
-		reqtype := req[4]
-		reqid := binary.BigEndian.Uint32(req[0:4])
-		if reqtype == 3 { // PublicKey
-			rep := buildPubkeyReplyNoPubkey(reqid) // TODO dignature
-			currentP2PConn.Write(requestToByteSlice(rep))
-			break
-		}
-		if reqtype == 4 { // Root
-			rep := buildRootReply(emptyStringHash, reqid)
-			currentP2PConn.Write(requestToByteSlice(rep))
-			break
-		}
-	}
-	for {
-		req := readMsgNoSignature(currentP2PConn) // read for a PublicKey or a Root
-		if len(req) == 0 {
-			// empty message
-			return
-		}
-		reqtype := req[4]
-		reqid := binary.BigEndian.Uint32(req[0:4])
-		if reqtype == 3 { // PublicKey
-			rep := buildPubkeyReplyNoPubkey(reqid) // TODO dignature
-			currentP2PConn.Write(requestToByteSlice(rep))
-			break
-		}
-		if reqtype == 4 { // Root
-			rep := buildRootReply(emptyStringHash, reqid)
-			currentP2PConn.Write(requestToByteSlice(rep))
-			break
-		}
-	}
-	// We put the block three times to process a pubkey, a NoOp, and a root at most. That's not optimal.
 }
