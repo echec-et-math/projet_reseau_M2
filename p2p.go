@@ -261,9 +261,8 @@ func downloadNode(Hash []byte, conn net.Conn) Node {
 	logProgress("Asking for hash : " + string(hex.EncodeToString(Hash)))
 	tmp := buildDatumRequest(Hash, 89)
 	conn.Write(requestToByteSlice(tmp))
-	answer := make([]byte, 40)
 	conn.SetReadDeadline(time.Now().Add(5 * time.Second)) // we need the last read to timeout to tell we're actually done with the server
-	answer = readMsgNoSignature(conn)
+	answer := readMsgNoSignature(conn)
 	displayError(answer)
 	logProgress("HERE WE ARE")
 	length := binary.BigEndian.Uint16(answer[5:7])
@@ -271,26 +270,22 @@ func downloadNode(Hash []byte, conn net.Conn) Node {
 		fmt.Printf("Download Node : found length of %d\n", length)
 	}
 	datatype := answer[39]
+	fmt.Println("bloup")
 	if debugmode {
 		fmt.Printf("Download Node : found datatype of %d\n", datatype)
 	}
 	if datatype == 0 {
 		//chunk
-		data := make([]byte, length-33)
-		conn.Read(data)
 		logProgress("un chunk de load")
-
-		return createChunk(data, 1024) //TODO faire un truc qui detecte la vraie longueur des données
+		return createChunk(answer[40:], 1024) //TODO faire un truc qui detecte la vraie longueur des données
 
 	}
 	if datatype == 1 {
 		//big
-		h := make([]byte, length-33)
-		conn.Read(h)
 		var bf []Node
 		for i := 0; i < 32; i++ {
-			bf = append(bf, downloadNode(h[i*32:i+1*32], conn))
-			if int(h[0]) == 0 {
+			bf = append(bf, downloadNode(answer[40+(i*32):40+((i+1)*32)], conn))
+			if int(answer[41+((i+1)*32)]) == 0 {
 				break
 			}
 		}
@@ -299,15 +294,12 @@ func downloadNode(Hash []byte, conn net.Conn) Node {
 	if datatype == 2 {
 		//directory
 		n := createDirectory("")
-
-		tmp := make([]byte, length-33)
-		conn.Read(tmp)
 		name := make([]byte, 32)
 		h := make([]byte, 32)
 
 		for i := 0; i < 16; i++ {
-			name = tmp[i*32*2 : (i+1)*32*2]
-			h = tmp[(i+1)*32*2 : (i+2)*32*2]
+			name = answer[40+(i*32*2) : 40+((i+1)*32*2)]
+			h = answer[40+((i+1)*32*2) : 40+((i+2)*32*2)]
 			if int(h[0]) == 0 {
 				break
 			}

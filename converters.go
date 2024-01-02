@@ -61,13 +61,17 @@ func requestToByteSlice(req *P2PMsg) []byte {
 	for i := 0; i < 4; i++ {
 		res[i] = req.Id[i]
 	}
+	fmt.Println("Id: ", res[0:4])
 	res[4] = req.Type
+	fmt.Println("type: ", res[4])
 	for i := 0; i < 2; i++ {
 		res[5+i] = req.Length[i]
 	}
+	fmt.Println("length: ", res[5:7])
 	for i := 0; uint16(i) < l; i++ {
 		res[7+i] = req.Body[i]
 	}
+	fmt.Println("body:",res[7:l+7])
 	for i := 0; i < len(req.Signature); i++ {
 		res[uint16(7)+l+uint16(i)] = req.Signature[i]
 	}
