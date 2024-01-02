@@ -82,11 +82,14 @@ func registerPeer(conn net.Conn, name string, hasPubkey bool, hasFiles bool, pub
 			}
 			fmt.Println("Handshake failed, retrying.")
 		} else {
+			conn.SetReadDeadline(time.Now().Add(5 * time.Second)) // we need the last read to timeout to tell we're actually done with the server
+			readMsgNoSignature(conn)                              // our read will auto-sort the requests
+			conn.SetReadDeadline(time.Time{})                     // reset deadline
 			logProgress("Handshake successful.")
-			break
+			return
 		}
 	}
-	pubkeyreq := readMsgNoSignature(conn)
+	/* pubkeyreq := readMsgNoSignature(conn)
 	pubkeyid := binary.BigEndian.Uint32(pubkeyreq[0:4])
 	logProgress("Pubkey request received")
 	req2 := buildPubkeyReplyNoPubkey(pubkeyid)
@@ -104,7 +107,7 @@ func registerPeer(conn net.Conn, name string, hasPubkey bool, hasFiles bool, pub
 		req3 = buildRootReply(roothash, roothashid)
 	}
 	conn.Write(requestToByteSlice(req3))
-	logProgress("Provided server with roothash")
+	logProgress("Provided server with roothash") */
 	// maintain connection through goroutine until interruption
 }
 

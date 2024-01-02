@@ -108,8 +108,5 @@ func udp_main(helpFlag bool, exitFlag bool) {
 		fmt.Println("switchmode : switches back into REST mode AND deconnects.")
 		fmt.Println("op [operation...] : if connected, executes an operation. See below for details.")
 		return
-	} else {
-		a := createFile("projet.pdf")
-		PrintTree(a, "")
 	}
 }

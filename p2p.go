@@ -80,6 +80,7 @@ func readMsgNoSignature(conn net.Conn) []byte {
 	conn.Read(content)
 	res := append(header, content...)
 	displayError(res)
+	fmt.Println(hex.EncodeToString(res))
 	switch msgtype {
 	case 0:
 		// NoOp
@@ -92,20 +93,27 @@ func readMsgNoSignature(conn net.Conn) []byte {
 	case 2:
 		// Hello
 		rep := buildHelloReply(msgid)
+		fmt.Println(hex.EncodeToString(helloToByteSlice(rep)))
 		conn.Write(helloToByteSlice(rep))
 		return readMsgNoSignature(conn)
 	case 3:
 		// PublicKey
+		logProgress("Pubkey request received")
 		rep := buildPubkeyReplyNoPubkey(msgid)
+		fmt.Println(hex.EncodeToString(requestToByteSlice(rep)))
 		conn.Write(requestToByteSlice(rep))
+		logProgress("Provided pubkey")
 		return readMsgNoSignature(conn)
 	case 4:
 		// Root
+		logProgress("Root hash request received")
 		rep := buildRootReply(emptyStringHash, msgid)
+		fmt.Println(hex.EncodeToString(requestToByteSlice(rep)))
 		conn.Write(requestToByteSlice(rep))
+		logProgress("Provided roothash")
 		return readMsgNoSignature(conn)
 	case 5:
-		// Datum
+		// GetDatum
 		// TODO
 		break
 	case 6:
@@ -254,19 +262,10 @@ func downloadNode(Hash []byte, conn net.Conn) Node {
 	tmp := buildDatumRequest(Hash, 89)
 	conn.Write(requestToByteSlice(tmp))
 	answer := make([]byte, 40)
-	for {
-		answer = make([]byte, 40) // fully reset buffer
-		conn.Read(answer)
-		msgtype := answer[4]
-		if debugmode {
-			fmt.Printf("Download Node : found message type of %d\n", msgtype)
-		}
-		if msgtype == 132 { // Datum
-			break
-		}
-		displayError(answer)
-	}
-	logProgress("test")
+	conn.SetReadDeadline(time.Now().Add(5 * time.Second)) // we need the last read to timeout to tell we're actually done with the server
+	answer = readMsgNoSignature(conn)
+	displayError(answer)
+	logProgress("HERE WE ARE")
 	length := binary.BigEndian.Uint16(answer[5:7])
 	if debugmode {
 		fmt.Printf("Download Node : found length of %d\n", length)
@@ -281,7 +280,7 @@ func downloadNode(Hash []byte, conn net.Conn) Node {
 		conn.Read(data)
 		logProgress("un chunk de load")
 
-		return createChunk(data, 1024) //TODO faire un truc qui detecte la vraie longueur des donné
+		return createChunk(data, 1024) //TODO faire un truc qui detecte la vraie longueur des données
 
 	}
 	if datatype == 1 {
@@ -355,20 +354,9 @@ func fetchPubKey(name string) ([]byte, bool) {
 }
 
 func salute(name string) {
-	for {
-		req := buildHelloRequest(name, 153, 0)
-		currentP2PConn.Write(helloToByteSlice(req))
-		rep := readMsgNoSignature(currentP2PConn) // TODO signature mode. We read the HelloReply.
-		repid := binary.BigEndian.Uint32(rep[0:4])
-		if repid == 153 { // handshake ok
-			break
-		}
-	}
+	req := buildHelloRequest(name, 153, 0)
+	currentP2PConn.Write(helloToByteSlice(req))
 	currentP2PConn.SetReadDeadline(time.Now().Add(time.Second * 5)) // accept a one-minute delay for pubkey or roothash
-	for {
-		msg := readMsgNoSignature(currentP2PConn) // listen a bit
-		if len(msg) == 0 {
-			return
-		}
-	}
+	readMsgNoSignature(currentP2PConn)                              // TODO signature mode. We read all the replys and process them, until an empty message tells us we're done.
+	currentP2PConn.SetReadDeadline(time.Time{})                     // reset deadline
 }
