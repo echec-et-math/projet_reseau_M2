@@ -61,6 +61,14 @@ type Node struct {
 	UDP readers
 */
 
+func readMsg(conn net.Conn) []byte {
+	if signaturemode && hasPubKey && peerHasKey {
+		return readMsgWithSignature(conn)
+	} else {
+		return readMsgNoSignature(conn)
+	}
+}
+
 func readMsgNoSignature(conn net.Conn) []byte {
 	// first read until the length
 	header := make([]byte, 7)
@@ -100,16 +108,22 @@ func readMsgNoSignature(conn net.Conn) []byte {
 		// PublicKey
 		logProgress("Pubkey request received")
 		rep := buildPubkeyReplyNoPubkey(msgid)
-		fmt.Println(hex.EncodeToString(requestToByteSlice(rep)))
+		if hasPubKey {
+			rep = buildPubkeyReplyWithPubkey(pubkey, msgid)
+		}
 		conn.Write(requestToByteSlice(rep))
+		fmt.Println(hex.EncodeToString(requestToByteSlice(rep)))
 		logProgress("Provided pubkey")
 		return readMsgNoSignature(conn)
 	case 4:
 		// Root
 		logProgress("Root hash request received")
 		rep := buildRootReply(emptyStringHash, msgid)
-		fmt.Println(hex.EncodeToString(requestToByteSlice(rep)))
+		if hasFiles {
+			rep = buildRootReply(roothash, msgid)
+		}
 		conn.Write(requestToByteSlice(rep))
+		fmt.Println(hex.EncodeToString(requestToByteSlice(rep)))
 		logProgress("Provided roothash")
 		return readMsgNoSignature(conn)
 	case 5:
@@ -145,6 +159,12 @@ func readMsgWithSignature(conn net.Conn) []byte {
 	conn.Read(content)
 	res := append(header, content...)
 	displayError(res)
+	signature := make([]byte, 64)
+	conn.Read(signature)
+	if !verify(res, signature, byteSliceToPubkey(peerpubkey)) {
+		logProgress("Invalid signature : skipping")
+		return readMsgWithSignature(conn)
+	}
 	switch msgtype {
 	case 0:
 		// NoOp
@@ -157,17 +177,27 @@ func readMsgWithSignature(conn net.Conn) []byte {
 	case 2:
 		// Hello
 		rep := buildHelloReply(msgid)
-		conn.Write(helloToByteSlice(rep))
+		conn.Write(signByteSlice(helloToByteSlice(rep), privkey))
 		return readMsgWithSignature(conn)
 	case 3:
 		// PublicKey
+		logProgress("Pubkey request received")
 		rep := buildPubkeyReplyNoPubkey(msgid)
-		conn.Write(requestToByteSlice(rep))
+		if hasPubKey {
+			rep = buildPubkeyReplyWithPubkey(pubkey, msgid)
+		}
+		conn.Write(signByteSlice(requestToByteSlice(rep), privkey))
 		return readMsgWithSignature(conn)
 	case 4:
 		// Root
+		logProgress("Root hash request received")
 		rep := buildRootReply(emptyStringHash, msgid)
-		conn.Write(requestToByteSlice(rep))
+		if hasFiles {
+			rep = buildRootReply(roothash, msgid)
+		}
+		conn.Write(signByteSlice(requestToByteSlice(rep), privkey))
+		fmt.Println(hex.EncodeToString(requestToByteSlice(rep)))
+		logProgress("Provided roothash")
 		return readMsgWithSignature(conn)
 	case 5:
 		// Datum
@@ -262,7 +292,8 @@ func downloadNode(Hash []byte, conn net.Conn) Node {
 	tmp := buildDatumRequest(Hash, 89)
 	conn.Write(requestToByteSlice(tmp))
 	conn.SetReadDeadline(time.Now().Add(5 * time.Second)) // we need the last read to timeout to tell we're actually done with the server
-	answer := readMsgNoSignature(conn)
+	conn.Write(requestToByteSlice(tmp))                   // re-ask, after the empty read
+	answer := readMsg(conn)
 	displayError(answer)
 	logProgress("HERE WE ARE")
 	length := binary.BigEndian.Uint16(answer[5:7])
@@ -349,6 +380,6 @@ func salute(name string) {
 	req := buildHelloRequest(name, 153, 0)
 	currentP2PConn.Write(helloToByteSlice(req))
 	currentP2PConn.SetReadDeadline(time.Now().Add(time.Second * 5)) // accept a one-minute delay for pubkey or roothash
-	readMsgNoSignature(currentP2PConn)                              // TODO signature mode. We read all the replys and process them, until an empty message tells us we're done.
+	readMsg(currentP2PConn)                                         // TODO signature mode. We read all the replys and process them, until an empty message tells us we're done.
 	currentP2PConn.SetReadDeadline(time.Time{})                     // reset deadline
 }

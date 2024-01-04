@@ -53,7 +53,7 @@ func signByteSlice(data []byte, privkey *ecdsa.PrivateKey) []byte {
 	signature := make([]byte, 64)
 	r.FillBytes(signature[:32])
 	s.FillBytes(signature[32:])
-	return signature
+	return append(data, signature...)
 }
 
 func verify(data []byte, signature []byte, pubkey *ecdsa.PublicKey) bool {

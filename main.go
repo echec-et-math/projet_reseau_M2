@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"crypto/ecdsa"
 	"crypto/tls"
 	"encoding/binary"
 	"encoding/hex"
@@ -22,6 +23,7 @@ var hasPubKey = false
 var hasFiles = false
 
 var pubkey = make([]byte, 64)
+var privkey *ecdsa.PrivateKey
 var roothash = make([]byte, 32)
 
 var emptyStringHash = make([]byte, 32) // TODO
@@ -33,6 +35,9 @@ var currentAbr = createDirectory("root")
 
 var currentP2PConn net.Conn
 var connectedToPeer = false
+
+var peerpubkey = make([]byte, 64)
+var peerHasKey = false
 
 var signaturemode = false
 
@@ -69,7 +74,7 @@ func registerPeer(conn net.Conn, name string, hasPubkey bool, hasFiles bool, pub
 		s := helloToByteSlice(req)
 		conn.Write(s)
 		logProgress("Handshake initiated")
-		rep := readMsgNoSignature(conn)
+		rep := readMsg(conn)
 		logProgress("Handshake response received")
 		id := binary.BigEndian.Uint32(rep[0:4])
 		if id != 23 || force_err {
@@ -83,31 +88,12 @@ func registerPeer(conn net.Conn, name string, hasPubkey bool, hasFiles bool, pub
 			fmt.Println("Handshake failed, retrying.")
 		} else {
 			conn.SetReadDeadline(time.Now().Add(5 * time.Second)) // we need the last read to timeout to tell we're actually done with the server
-			readMsgNoSignature(conn)                              // our read will auto-sort the requests
+			readMsg(conn)                                         // our read will auto-sort the requests
 			conn.SetReadDeadline(time.Time{})                     // reset deadline
 			logProgress("Handshake successful.")
 			return
 		}
 	}
-	/* pubkeyreq := readMsgNoSignature(conn)
-	pubkeyid := binary.BigEndian.Uint32(pubkeyreq[0:4])
-	logProgress("Pubkey request received")
-	req2 := buildPubkeyReplyNoPubkey(pubkeyid)
-	if hasPubkey {
-		req2 = buildPubkeyReplyWithPubkey(pubkey, pubkeyid)
-	}
-	conn.Write(requestToByteSlice(req2))
-	logProgress("Provided server with pubkey")
-	_ = readMsgNoSignature(conn)
-	roothashreq := readMsgNoSignature(conn)
-	roothashid := binary.BigEndian.Uint32(roothashreq[0:4])
-	logProgress("Root hash request received")
-	req3 := buildRootReply(emptyStringHash, roothashid)
-	if hasFiles {
-		req3 = buildRootReply(roothash, roothashid)
-	}
-	conn.Write(requestToByteSlice(req3))
-	logProgress("Provided server with roothash") */
 	// maintain connection through goroutine until interruption
 }
 
@@ -188,9 +174,9 @@ func main() { // CLI Merge from REST and P2P (UDP)
 				getPeerAddressesFlag = secondWord
 				break
 			case "generateKey":
-				privkey := privKeyGen()
-				pubkey := computePubKey(privkey)
-				fmt.Println("Public key : " + string(hex.EncodeToString(pubkeyToByteSlice(pubkey))))
+				privkey = privKeyGen()
+				pubkey = pubkeyToByteSlice(computePubKey(privkey))
+				fmt.Println("Public key : " + string(hex.EncodeToString(pubkey)))
 				break
 			case "getKey":
 				getPeerKeyFlag = secondWord
@@ -240,6 +226,7 @@ func main() { // CLI Merge from REST and P2P (UDP)
 					}
 				} else {
 					salute(name)
+					peerpubkey, peerHasKey = fetchPubKey(secondWord)
 					connectedToPeer = true
 					fmt.Println("Successfully connected to peer.")
 				}
