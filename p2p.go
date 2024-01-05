@@ -286,13 +286,13 @@ func sendDatum(n Node, con net.Conn) {
 
 }
 
-func downloadNode(Hash []byte, conn net.Conn) Node {
+func downloadNode(Hash []byte, conn net.Conn) Node{
 	currentP2PConn.SetReadDeadline(time.Time{})
 	logProgress("Asking for hash : " + string(hex.EncodeToString(Hash)))
 	tmp := buildDatumRequest(Hash, 89)
 	conn.Write(requestToByteSlice(tmp))
 	conn.SetReadDeadline(time.Now().Add(5 * time.Second)) // we need the last read to timeout to tell we're actually done with the server
-	conn.Write(requestToByteSlice(tmp))                   // re-ask, after the empty read
+	//conn.Write(requestToByteSlice(tmp))                   // re-ask, after the empty read
 	answer := readMsg(conn)
 	displayError(answer)
 	logProgress("HERE WE ARE")
@@ -308,7 +308,7 @@ func downloadNode(Hash []byte, conn net.Conn) Node {
 	if datatype == 0 {
 		//chunk
 		logProgress("un chunk de load")
-		return createChunk(answer[40:], 1024) //TODO faire un truc qui detecte la vraie longueur des données
+		return createChunk(answer[40:], int(length-32)) //TODO faire un truc qui detecte la vraie longueur des données
 
 	}
 	if datatype == 1 {
