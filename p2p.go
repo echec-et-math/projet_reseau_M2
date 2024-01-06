@@ -433,7 +433,7 @@ func downloadNode(Hash []byte, conn net.Conn) (Node, int) {
 		name := make([]byte, 32)
 		h := make([]byte, 32)
 
-		for i := 0; i <((int(length)-32)/32); i++ {
+		for i := 0; i <((int(length)-32)/64); i++ {
 			name = answer[40+(i*64) : 72+(i*64)]
 			h = answer[72+(i*64) : 104+(i*64)]
 			if int(h[0]) == 0 {
@@ -450,7 +450,7 @@ func downloadNode(Hash []byte, conn net.Conn) (Node, int) {
 			AddChild(n, tmpc)
 			n.Childs[i].name = string(name)
 		}
-		if compareHash(n.Hash, Hash) {
+		if !compareHash(n.Hash, Hash) {
 			return n, 0 //TODO faire un truc qui detecte la vraie longueur des données
 		} else {
 			return createDirectory(""), 3
