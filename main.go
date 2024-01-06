@@ -28,6 +28,7 @@ var roothash = make([]byte, 32)
 var emptyStringHash = make([]byte, 32) // TODO
 
 var serv_addr = "jch.irif.fr:8443"
+var serv_addr_noport = "jch.irif.fr"
 var serv_url = "https://jch.irif.fr:8443"
 
 var currentAbr = createFile("projet.pdf")
@@ -40,8 +41,6 @@ var list net.Conn
 
 var peerpubkey = make([]byte, 64)
 var peerHasKey = false
-
-var signaturemode = false
 
 var debugmode = true  // TODO
 var force_err = false // this forces error-handling routines to happen, even if nothing failed
@@ -66,13 +65,14 @@ func logProgress(msg string) {
 	REST register module
 */
 
-func registerPeer(name string, hasPubkey bool, hasFiles bool, pubkey []byte, roothash []byte) {
+func registerPeer(name string, pubkey []byte, roothash []byte) {
 	// dial server
 	req := buildHelloRequest(name, 23, 0)
-	if hasPubkey && signaturemode {
-		conn.Write(signByteSlice(helloToByteSlice(req), privkey))
+	s := helloToByteSlice(req)
+	if hasPubKey {
+		signAndWrite(conn, s)
 	} else {
-		conn.Write(helloToByteSlice(req))
+		conn.Write(s)
 	}
 	logProgress("Handshake initiated")
 	readMsg(conn)
@@ -87,13 +87,13 @@ func main() { // CLI Merge from REST and P2P (UDP)
 		Transport: transport,
 		Timeout:   50 * time.Second,
 	}
-	list, _ = net.Dial("udp", serv_addr)
-	req := buildHelloRequest("NoName", 0, 0)
-	list.Write(helloToByteSlice(req))
-	list.SetReadDeadline(time.Now().Add(time.Second * 5)) // accept a delay for pubkey or roothash
-	readMsg(list)                                         // TODO signature mode. We read all the replys and process them, until an empty message tells us we're done.
-	go keepaliveNoSignature(list, &currentAbr)
-	conn,_ =net.Dial("udp", serv_addr)
+	// THIS BLOCK IS ONLY USEFUL FOR NAT TRAVERSAL REQUESTS
+	/* conn, _ = net.Dial("udp", serv_addr)
+	req := buildHelloRequest(name, 0, 0)
+	conn.Write(helloToByteSlice(req))
+	conn.SetReadDeadline(time.Now().Add(time.Second * 5)) // accept a delay for pubkey or roothash
+	readMsg(conn)                                         // TODO signature mode. We read all the replys and process them, until an empty message tells us we're done.
+	//go keepaliveNoSignature(conn) */
 	RESTMode := true
 	listPeersFlag := false
 	getPeerAddressesFlag := ""
@@ -161,6 +161,7 @@ func main() { // CLI Merge from REST and P2P (UDP)
 			case "generateKey":
 				privkey = privKeyGen()
 				pubkey = pubkeyToByteSlice(computePubKey(privkey))
+				hasPubKey = true
 				fmt.Println("Public key : " + string(hex.EncodeToString(pubkey)))
 				break
 			case "getKey":
@@ -170,16 +171,13 @@ func main() { // CLI Merge from REST and P2P (UDP)
 				getPeerRootHashFlag = secondWord
 				break
 			case "register":
-				registerPeer(name, hasPubKey, hasFiles, pubkey, roothash)
+				conn, _ = net.Dial("udp", serv_addr)
+				//peerpubkey, peerHasKey = fetchPubKey(serv_addr_noport)
+				//Uncomment above when the REST Server will sign its HelloReply properly
+				registerPeer(name, pubkey, roothash)
 				break
 			case "setName":
 				name = secondWord
-				break
-			case "signatureon":
-				signaturemode = true
-				break
-			case "signatureoff":
-				signaturemode = false
 				break
 			case "switchmode":
 				RESTMode = false
@@ -210,8 +208,9 @@ func main() { // CLI Merge from REST and P2P (UDP)
 						log.Fatal(err)
 					}
 				} else {
-					salute(name)
 					peerpubkey, peerHasKey = fetchPubKey(secondWord)
+					// Uncomment above when we figure out signatures
+					salute(name)
 					connectedToPeer = true
 					fmt.Println("Successfully connected to peer.")
 				}
@@ -231,7 +230,7 @@ func main() { // CLI Merge from REST and P2P (UDP)
 				break
 			case "disconnect":
 				if connectedToPeer {
-					conn.Close()
+					currentP2PConn.Close()
 					connectedToPeer = false
 				}
 				RESTMode = true
@@ -260,11 +259,8 @@ func main() { // CLI Merge from REST and P2P (UDP)
 			case "setName":
 				name = secondWord
 				break
-			case "signatureon":
-				signaturemode = true
-				break
-			case "signatureoff":
-				signaturemode = false
+			case "switchmode":
+				RESTMode = true
 				break
 			default:
 				helpFlag = true
