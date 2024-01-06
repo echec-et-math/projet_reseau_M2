@@ -186,16 +186,17 @@ func buildRootRequestNoData() *P2PMsg {
 	}
 }
 
-/* func buildDatumReply(value []byte) *Datum { // variable length, assumed storable on 2 bytes
+ func buildDatumReply(id []byte,value []byte, hash []byte) *Datum { // variable length, assumed storable on 2 bytes
 	buf := make([]byte, 2)
 	binary.BigEndian.PutUint16(buf, uint16(len(value)+32)) // add the hash length to the total
 	return &Datum{
+		Id:		id,
 		Type:   132,
 		Length: buf,
-		Hash:   hash(value), // 32 bytes
+		Hash:   hash, // 32 bytes
 		Value:  value,
 	}
-} */
+} 
 
 func buildNatTraversalRequestIPv4(ipv4addr []byte, port uint16) *P2PMsg {
 	buf := make([]byte, 2)

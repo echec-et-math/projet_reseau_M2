@@ -106,7 +106,7 @@ func udp_main(helpFlag bool, exitFlag bool) {
 		fmt.Println("signatureon : enables signatures during exchanges. Disabled by default.")
 		fmt.Println("signatureoff : disables signatures during exchanges. Disabled by default.")
 		fmt.Println("switchmode : switches back into REST mode AND deconnects.")
-		fmt.Println("op [operation...] : if connected, executes an operation. See below for details.")
+		fmt.Println("download hash : download the node specified and all descendant and write it to a file")
 		return
 	}
 }

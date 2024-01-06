@@ -30,12 +30,13 @@ var emptyStringHash = make([]byte, 32) // TODO
 var serv_addr = "jch.irif.fr:8443"
 var serv_url = "https://jch.irif.fr:8443"
 
-var currentAbr = createDirectory("root")
+var currentAbr = createFile("projet.pdf")
 
 var currentP2PConn net.Conn
 var connectedToPeer = false
 
 var conn net.Conn // REST server connection
+var list net.Conn
 
 var peerpubkey = make([]byte, 64)
 var peerHasKey = false
@@ -71,8 +72,7 @@ func registerPeer(name string, hasPubkey bool, hasFiles bool, pubkey []byte, roo
 	if hasPubkey && signaturemode {
 		conn.Write(signByteSlice(helloToByteSlice(req), privkey))
 	} else {
-		s := helloToByteSlice(req)
-		conn.Write(s)
+		conn.Write(helloToByteSlice(req))
 	}
 	logProgress("Handshake initiated")
 	readMsg(conn)
@@ -87,12 +87,13 @@ func main() { // CLI Merge from REST and P2P (UDP)
 		Transport: transport,
 		Timeout:   50 * time.Second,
 	}
-	conn, _ = net.Dial("udp", serv_addr)
+	list, _ = net.Dial("udp", serv_addr)
 	req := buildHelloRequest("NoName", 0, 0)
-	conn.Write(helloToByteSlice(req))
-	conn.SetReadDeadline(time.Now().Add(time.Second * 5)) // accept a delay for pubkey or roothash
-	readMsg(conn)                                         // TODO signature mode. We read all the replys and process them, until an empty message tells us we're done.
-	//go keepaliveNoSignature(conn)
+	list.Write(helloToByteSlice(req))
+	list.SetReadDeadline(time.Now().Add(time.Second * 5)) // accept a delay for pubkey or roothash
+	readMsg(list)                                         // TODO signature mode. We read all the replys and process them, until an empty message tells us we're done.
+	go keepaliveNoSignature(list, &currentAbr)
+	conn,_ =net.Dial("udp", serv_addr)
 	RESTMode := true
 	listPeersFlag := false
 	getPeerAddressesFlag := ""
