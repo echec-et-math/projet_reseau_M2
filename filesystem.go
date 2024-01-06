@@ -179,3 +179,13 @@ func WriteFile(current Node, index int, f os.File) int {
 	}
 	// return -1 -> unreachable code
 }
+func importKey(f os.File) string{
+	reader := bufio.NewReader(f)
+	buf := make([]byte, 64)
+	_, err := reader.Read(buf)
+	return string(buf)
+}
+
+func exportKey(s []byte, f os.File) int{
+	f.WriteAt(s,0)
+}
