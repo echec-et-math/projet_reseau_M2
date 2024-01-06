@@ -9,6 +9,7 @@ import (
 	"log"
 	"net"
 	"net/http"
+	"strings"
 	"time"
 )
 
@@ -301,7 +302,7 @@ func sendDatum(n Node, con net.Conn) {
 
 }
 
-func downloadNode(Hash []byte, conn net.Conn) Node{
+func downloadNode(Hash []byte, conn net.Conn) Node {
 	currentP2PConn.SetReadDeadline(time.Time{})
 	logProgress("Asking for hash : " + string(hex.EncodeToString(Hash))+"/n envoie de :")
 	tmp := buildDatumRequest(Hash, 89)
@@ -389,10 +390,45 @@ func fetchPubKey(name string) ([]byte, bool) {
 	return res, true
 }
 
+func splitaddr(address string) ([]byte, uint16) {
+	addr, portnb, _ := strings.Cut(address, ":")
+	return []byte(addr), binary.BigEndian.Uint16([]byte(portnb))
+}
+
 func salute(name string) {
 	req := buildHelloRequest(name, 153, 0)
-	currentP2PConn.Write(helloToByteSlice(req))
-	currentP2PConn.SetReadDeadline(time.Now().Add(time.Second * 5)) // accept a one-minute delay for pubkey or roothash
-	readMsg(currentP2PConn)                                         // TODO signature mode. We read all the replys and process them, until an empty message tells us we're done.
-	currentP2PConn.SetReadDeadline(time.Time{})                     // reset deadline
+	for i := 0; i < 5; i++ {
+		if hasPubKey && signaturemode {
+			currentP2PConn.Write(signByteSlice(helloToByteSlice(req), privkey))
+		} else {
+			currentP2PConn.Write(helloToByteSlice(req))
+		}
+		currentP2PConn.SetReadDeadline(time.Now().Add(time.Second * 5)) // accept a one-minute delay for pubkey or roothash
+		rep := readMsg(currentP2PConn)                                  // TODO signature mode. We read all the replys and process them, until an empty message tells us we're done.
+		if len(rep) != 0 {
+			return
+		}
+	}
+	// 5 unsuccessful tries
+	logProgress("Failed to contact the peer after 5 tries. Issuing a NAT traversal request.")
+	remote_addr := currentP2PConn.RemoteAddr().String()
+	isIPV4 := strings.Count(remote_addr, ".") == 3
+	addr, portnb := splitaddr(remote_addr)
+	var natreq *P2PMsg
+	if isIPV4 {
+		natreq = buildNatTraversalRequestIPv4(addr, portnb)
+	} else {
+		natreq = buildNatTraversalReplyIPv6(addr, portnb)
+	}
+	if hasPubKey && signaturemode {
+		conn.Write(signByteSlice(helloToByteSlice(req), privkey))
+	} else {
+		conn.Write(helloToByteSlice(req))
+	}
+	conn.SetReadDeadline(time.Now().Add(time.Second * 5)) // accept a one-minute delay for pubkey or roothash
+	readMsg(conn)
+	conn.Write(requestToByteSlice(natreq)) // server handles the traversal
+	// now we just listen through our listener
+	// in case of a Hello reception, we have to tell Hello AGAIN : TODO create a table to store this
+	conn.SetReadDeadline(time.Time{}) // reset deadline
 }
