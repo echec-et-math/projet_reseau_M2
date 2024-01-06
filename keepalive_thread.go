@@ -8,7 +8,6 @@ import (
 )
 
 func keepaliveNoSignature(conn net.Conn, tree *Node) {
-	helloreq := buildHelloRequest(name, 0, 0)
 	for {
 		time.Sleep(time.Minute)
 		conn.SetReadDeadline(time.Now().Add(time.Second * 5))
@@ -64,7 +63,11 @@ func keepaliveNoSignature(conn net.Conn, tree *Node) {
 				conn.Write(requestToByteSlice(rep))
 			}
 		}else{
-			conn.Write(helloToByteSlice(helloreq))// mettre un noop a un moment plus logique
+			buf:=make([]byte, 7)
+			for i:=0;i<7;i++{
+				buf[i]=byte(0)
+			}
+			conn.Write(buf)// mettre un noop a un moment plus logique
 		}
 		conn.SetReadDeadline(time.Now().Add(time.Second * 5))
 		readMsgNoSignature(conn)
