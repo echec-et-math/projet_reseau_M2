@@ -367,32 +367,30 @@ func downloadNode(Hash []byte, conn net.Conn) (Node, int) {
 		return createDirectory(""), 6
 	}
 	if datatype == 0 {
-		debugmode=false
+		debugmode = false
 		//chunk
 		logProgress("un chunk de load")
 		c := createChunk(answer[40:], int(length-32))
 		h := sha256.New()
 		h.Write(answer[39:])
-		tmph:=h.Sum(nil)
+		tmph := h.Sum(nil)
 		//fmt.Println("les hash:")
 		//fmt.Println(Hash)
 		if compareHash(Hash, tmph) {
-			debugmode=false
-
-			return c, 0 
+			debugmode = false
+			return c, 0
 		} else {
 			return createDirectory(""), 1
 		}
-
 	}
 	if datatype == 1 {
 		//big
-		debugmode=false
+		debugmode = false
 		var bf []Node
-		fmt.Println((int(length)-32)/32)
+		fmt.Println((int(length) - 32) / 32)
 
-		for i := 0; i < ((int(length)-32)/32); i++ {
-			
+		for i := 0; i < ((int(length) - 32) / 32); i++ {
+
 			tmpc, tmpe := downloadNode(answer[(40+(i*32)):(40+((i+1)*32))], conn)
 			if tmpe != 0 {
 				return createDirectory(""), tmpe
@@ -407,7 +405,7 @@ func downloadNode(Hash []byte, conn net.Conn) (Node, int) {
 		c := createBigFile(bf, len(bf))
 		s := []byte{}
 		h := sha256.New()
-		s = append(s,1)
+		s = append(s, 1)
 		for i := 0; i < c.nbchild; i++ {
 			s = append(s, bf[i].Hash...)
 		}
@@ -417,7 +415,7 @@ func downloadNode(Hash []byte, conn net.Conn) (Node, int) {
 		fmt.Println(Hash)
 		fmt.Println(c.Hash)*/
 		if !compareHash(tmph, Hash) {
-			debugmode=true
+			debugmode = true
 			return c, 0
 		} else {
 			return createDirectory(""), 5
@@ -427,19 +425,19 @@ func downloadNode(Hash []byte, conn net.Conn) (Node, int) {
 	if datatype == 2 {
 		//directory
 		n := createDirectory("")
-		if(length==33){
-			return n,0
+		if length == 33 {
+			return n, 0
 		}
 		name := make([]byte, 32)
 		h := make([]byte, 32)
 
-		for i := 0; i <((int(length)-32)/64); i++ {
+		for i := 0; i < ((int(length) - 32) / 64); i++ {
 			name = answer[40+(i*64) : 72+(i*64)]
 			h = answer[72+(i*64) : 104+(i*64)]
 			if int(h[0]) == 0 {
 				break
 			}
-			fmt.Println(((int(length)-32)/64))
+			fmt.Println(((int(length) - 32) / 64))
 			fmt.Println("body totale")
 			fmt.Println(answer[40:])
 			fmt.Println(answer[72+(i*64) : 104+(i*64)])
@@ -529,6 +527,7 @@ func salute(name string) {
 			}
 			currentP2PConn.SetReadDeadline(time.Now().Add(time.Second * 5))
 			readMsg(currentP2PConn) // and again
+			go keepalive(currentP2PConn, &currentAbr)
 			return
 		}
 	}
