@@ -315,7 +315,7 @@ func sendDatum(n Node, con net.Conn) {
 
 }
 
-func downloadNode(Hash []byte, conn net.Conn) Node {
+func downloadNode(Hash []byte, conn net.Conn) (Node,int) {
 	currentP2PConn.SetReadDeadline(time.Time{})
 	logProgress("Asking for hash : " + string(hex.EncodeToString(Hash)) + "\n envoi de :")
 	tmp := buildDatumRequest(Hash, 89)
@@ -337,22 +337,30 @@ func downloadNode(Hash []byte, conn net.Conn) Node {
 	if debugmode {
 		fmt.Printf("Download Node : found datatype of %d\n", datatype)
 	}
+	if(!(compareHash(Hash,answer[7:39]))){
+		return createDirectory(""),1
+	}
 	if datatype == 0 {
 		//chunk
 		logProgress("un chunk de load")
-		return createChunk(answer[40:], int(length-32)) //TODO faire un truc qui detecte la vraie longueur des données
+		return createChunk(answer[40:], int(length-32)),0 //TODO faire un truc qui detecte la vraie longueur des données
 
 	}
 	if datatype == 1 {
 		//big
 		var bf []Node
 		for i := 0; i < 32; i++ {
-			bf = append(bf, downloadNode(answer[40+(i*32):40+((i+1)*32)], conn))
+			tmpc,tmpe:=downloadNode(answer[40+(i*32):40+((i+1)*32)], conn)
+			if(tmpe==1){
+				return createDirectory(""),1
+			}
+
+			bf = append(bf, tmpc)
 			if int(answer[41+((i+1)*32)]) == 0 {
 				break
 			}
 		}
-		return createBigFile(bf, len(bf))
+		return createBigFile(bf, len(bf)),0
 	}
 	if datatype == 2 {
 		//directory
@@ -366,13 +374,17 @@ func downloadNode(Hash []byte, conn net.Conn) Node {
 			if int(h[0]) == 0 {
 				break
 			}
-			AddChild(n, downloadNode(h, conn))
+			tmpc,tmpe:=downloadNode(h,conn)
+			if(tmpe==1){
+				return createDirectory(""),1
+			}
+			AddChild(n, tmpc)
 			n.Childs[i].name = string(name)
 		}
-		return n
+		return n,0
 	}
 	logProgress("ya un blem")
-	return createDirectory("")
+	return createDirectory(""),1
 
 }
 
