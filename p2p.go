@@ -103,7 +103,7 @@ func readMsgNoSignature(conn net.Conn) []byte {
 		}
 	}
 	displayError(res)
-	fmt.Println(hex.EncodeToString(res))
+	//fmt.Println(hex.EncodeToString(res))
 	switch msgtype {
 	case 0:
 		// NoOp
@@ -135,7 +135,7 @@ func readMsgNoSignature(conn net.Conn) []byte {
 			rep = buildRootReply(roothash, msgid)
 		}
 		signAndWrite(conn, requestToByteSlice(rep))
-		fmt.Println(hex.EncodeToString(requestToByteSlice(rep)))
+		//fmt.Println(hex.EncodeToString(requestToByteSlice(rep)))
 		logProgress("Provided roothash")
 		return readMsgNoSignature(conn)
 	case 5:
@@ -219,7 +219,7 @@ func readMsgWithSignature(conn net.Conn) []byte {
 			rep = buildRootReply(roothash, msgid)
 		}
 		signAndWrite(conn, requestToByteSlice(rep))
-		fmt.Println(hex.EncodeToString(requestToByteSlice(rep)))
+		//fmt.Println(hex.EncodeToString(requestToByteSlice(rep)))
 		logProgress("Provided roothash")
 		return readMsgWithSignature(conn)
 	case 5:
@@ -341,7 +341,10 @@ func downloadNode(Hash []byte, conn net.Conn) (Node, int) {
 	nodata := answer[4] == 133
 	if nodata {
 		logProgress("Data not found from peer for hash : " + hex.EncodeToString(answer[7:39]))
+		return createDirectory(""), 7
+
 	}
+
 	datatype := answer[39]
 	if debugmode {
 		fmt.Printf("Download Node : found datatype of %d\n", datatype)
@@ -355,7 +358,12 @@ func downloadNode(Hash []byte, conn net.Conn) (Node, int) {
 		//chunk
 		logProgress("un chunk de load")
 		c := createChunk(answer[40:], int(length-32))
-		if compareHash(c.Hash, Hash) {
+		h := sha256.New()
+		h.Write(answer[39:])
+		tmph:=h.Sum(nil)
+		//fmt.Println("les hash:")
+		//fmt.Println(Hash)
+		if compareHash(Hash, tmph) {
 			return c, 0 
 		} else {
 			return createDirectory(""), 1
@@ -365,21 +373,35 @@ func downloadNode(Hash []byte, conn net.Conn) (Node, int) {
 	if datatype == 1 {
 		//big
 		var bf []Node
-		for i := 0; i < 32; i++ {
+		fmt.Println((int(length)-32)/32)
+
+		for i := 0; i < ((int(length)-32)/32); i++ {
 			
 			tmpc, tmpe := downloadNode(answer[(40+(i*32)):(40+((i+1)*32))], conn)
-			if tmpe == 1 {
-				return createDirectory(""), 2
+			if tmpe != 0 {
+				return createDirectory(""), tmpe
 			}
 
 			bf = append(bf, tmpc)
-			if int(answer[41+((i+1)*32)]) == 0 {
+			/*if int(answer[41+((i+1)*32)]) == 0 {
 				break
-			}
+			}*/
 		}
+
 		c := createBigFile(bf, len(bf))
-		if compareHash(c.Hash, Hash) {
-			return c, 0 //TODO faire un truc qui detecte la vraie longueur des données
+		s := []byte{}
+		h := sha256.New()
+		s = append(s,1)
+		for i := 0; i < c.nbchild; i++ {
+			s = append(s, bf[i].Hash...)
+		}
+		h.Write(s)
+		tmph := h.Sum(nil)
+		fmt.Println(tmph)
+		fmt.Println(Hash)
+		fmt.Println(c.Hash)
+		if compareHash(tmph, Hash) {
+			return c, 0
 		} else {
 			return createDirectory(""), 5
 		}
@@ -388,18 +410,21 @@ func downloadNode(Hash []byte, conn net.Conn) (Node, int) {
 	if datatype == 2 {
 		//directory
 		n := createDirectory("")
+		if(length==33){
+			return n,0
+		}
 		name := make([]byte, 32)
 		h := make([]byte, 32)
 
 		for i := 0; i < 16; i++ {
-			name = answer[40+(i*32*2) : 40+((i+1)*32*2)]
-			h = answer[40+((i+1)*32*2) : 40+((i+2)*32*2)]
+			name = answer[40+(i*64) : 72+(i*64)]
+			h = answer[72+(i*64) : 104+(i*64)]
 			if int(h[0]) == 0 {
 				break
 			}
 			tmpc, tmpe := downloadNode(h, conn)
-			if tmpe == 1 {
-				return createDirectory(""), 2
+			if tmpe != 0 {
+				return createDirectory(""), tmpe
 			}
 			AddChild(n, tmpc)
 			n.Childs[i].name = string(name)

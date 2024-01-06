@@ -31,6 +31,7 @@ func helloToByteSlice(exchange *HelloExchange) []byte {
 		res[11+l+i] = exchange.Signature[i]
 	}
 	if debugmode {
+		fmt.Println("affichage du hello envoyé:")
 		fmt.Println("Id: ", res[0:4])
 		fmt.Println("type: ", res[4])
 		fmt.Println("length: ", res[5:7])
@@ -61,6 +62,7 @@ func datumToByteSlice(datum *Datum) []byte {
 		res[uint16(7)+l+uint16(i)] = datum.Signature[i]
 	}
 	if debugmode {
+		fmt.Println("affichage du datum envoyé:")
 		fmt.Println("Id: ", res[0:4])
 		fmt.Println("type: ", res[4])
 		fmt.Println("length: ", res[5:7])
@@ -89,6 +91,7 @@ func requestToByteSlice(req *P2PMsg) []byte {
 		res[uint16(7)+l+uint16(i)] = req.Signature[i]
 	}
 	if debugmode {
+		fmt.Println("affichage de la requete envoyé :")
 		fmt.Println("Id: ", res[0:4])
 		fmt.Println("type: ", res[4])
 		fmt.Println("length: ", res[5:7])

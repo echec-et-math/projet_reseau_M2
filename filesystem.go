@@ -148,6 +148,7 @@ func createDirectory(n string) Node {
 		nbchild:   0,
 		Parent:    nil,
 		name:      n,
+		Childs:	   make([]Node, 16),
 	}
 }
 func PrintTree(r Node, pre string) {
