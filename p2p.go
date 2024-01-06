@@ -206,6 +206,10 @@ func readMsgWithSignature(conn net.Conn) []byte {
 	case 3:
 		// PublicKey
 		logProgress("Pubkey request received")
+		if !helloExchangeDone {
+			communicateError(conn, "Please say hello first", msgtype)
+			break
+		}
 		rep := buildPubkeyReplyNoPubkey(msgid)
 		if hasPubKey {
 			rep = buildPubkeyReplyWithPubkey(pubkey, msgid)
@@ -215,6 +219,10 @@ func readMsgWithSignature(conn net.Conn) []byte {
 	case 4:
 		// Root
 		logProgress("Root hash request received")
+		if !helloExchangeDone {
+			communicateError(conn, "Please say hello first", msgtype)
+			break
+		}
 		rep := buildRootReply(emptyStringHash, msgid)
 		if hasFiles {
 			rep = buildRootReply(roothash, msgid)
@@ -225,6 +233,9 @@ func readMsgWithSignature(conn net.Conn) []byte {
 		return readMsgWithSignature(conn)
 	case 5:
 		// Datum
+		if !helloExchangeDone {
+			communicateError(conn, "Please say hello first", msgtype)
+		}
 		// TODO
 		break
 	case 6:
@@ -237,13 +248,26 @@ func readMsgWithSignature(conn net.Conn) []byte {
 		break
 	case 130:
 		// PublicKeyReply
+		if !helloExchangeDone {
+			communicateError(conn, "Please say hello first", msgtype)
+			break
+		}
 		pubkeyExchangeDone = true
 		break
 	case 131:
 		// RootReply
+		if !helloExchangeDone {
+			communicateError(conn, "Please say hello first", msgtype)
+			break
+		}
 		roothashExchangeDone = true
 		break
 	default:
+		if !helloExchangeDone {
+			communicateError(conn, "Please say hello first. Also I don't know this message type.", msgtype)
+			break
+		}
+		communicateError(conn, "Unknown message type.", msgtype)
 		break
 	}
 	return res
