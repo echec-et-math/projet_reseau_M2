@@ -367,6 +367,7 @@ func downloadNode(Hash []byte, conn net.Conn) (Node, int) {
 		return createDirectory(""), 6
 	}
 	if datatype == 0 {
+		debugmode=false
 		//chunk
 		logProgress("un chunk de load")
 		c := createChunk(answer[40:], int(length-32))
@@ -376,6 +377,8 @@ func downloadNode(Hash []byte, conn net.Conn) (Node, int) {
 		//fmt.Println("les hash:")
 		//fmt.Println(Hash)
 		if compareHash(Hash, tmph) {
+			debugmode=false
+
 			return c, 0 
 		} else {
 			return createDirectory(""), 1
@@ -384,6 +387,7 @@ func downloadNode(Hash []byte, conn net.Conn) (Node, int) {
 	}
 	if datatype == 1 {
 		//big
+		debugmode=false
 		var bf []Node
 		fmt.Println((int(length)-32)/32)
 
@@ -409,10 +413,11 @@ func downloadNode(Hash []byte, conn net.Conn) (Node, int) {
 		}
 		h.Write(s)
 		tmph := h.Sum(nil)
-		fmt.Println(tmph)
+		/*fmt.Println(tmph)
 		fmt.Println(Hash)
-		fmt.Println(c.Hash)
-		if compareHash(tmph, Hash) {
+		fmt.Println(c.Hash)*/
+		if !compareHash(tmph, Hash) {
+			debugmode=true
 			return c, 0
 		} else {
 			return createDirectory(""), 5
@@ -428,12 +433,16 @@ func downloadNode(Hash []byte, conn net.Conn) (Node, int) {
 		name := make([]byte, 32)
 		h := make([]byte, 32)
 
-		for i := 0; i < 16; i++ {
+		for i := 0; i <((int(length)-32)/32); i++ {
 			name = answer[40+(i*64) : 72+(i*64)]
 			h = answer[72+(i*64) : 104+(i*64)]
 			if int(h[0]) == 0 {
 				break
 			}
+			fmt.Println(((int(length)-32)/64))
+			fmt.Println("body totale")
+			fmt.Println(answer[40:])
+			fmt.Println(answer[72+(i*64) : 104+(i*64)])
 			tmpc, tmpe := downloadNode(h, conn)
 			if tmpe != 0 {
 				return createDirectory(""), tmpe
