@@ -371,12 +371,10 @@ func downloadNode(Hash []byte, conn net.Conn) (Node, int) {
 		//chunk
 		logProgress("un chunk de load")
 		c := createChunk(answer[40:], int(length-32))
-		h := sha256.New()
-		h.Write(answer[39:])
-		tmph:=h.Sum(nil)
+		
 		//fmt.Println("les hash:")
 		//fmt.Println(Hash)
-		if compareHash(Hash, tmph) {
+		if compareHash(Hash, c.Hash) {
 			debugmode=false
 
 			return c, 0 
@@ -405,18 +403,7 @@ func downloadNode(Hash []byte, conn net.Conn) (Node, int) {
 		}
 
 		c := createBigFile(bf, len(bf))
-		s := []byte{}
-		h := sha256.New()
-		s = append(s,1)
-		for i := 0; i < c.nbchild; i++ {
-			s = append(s, bf[i].Hash...)
-		}
-		h.Write(s)
-		tmph := h.Sum(nil)
-		/*fmt.Println(tmph)
-		fmt.Println(Hash)
-		fmt.Println(c.Hash)*/
-		if !compareHash(tmph, Hash) {
+		if compareHash(c.Hash, Hash) {
 			debugmode=true
 			return c, 0
 		} else {
@@ -432,6 +419,7 @@ func downloadNode(Hash []byte, conn net.Conn) (Node, int) {
 		}
 		name := make([]byte, 32)
 		h := make([]byte, 32)
+		
 
 		for i := 0; i <((int(length)-32)/64); i++ {
 			name = answer[40+(i*64) : 72+(i*64)]
@@ -439,18 +427,15 @@ func downloadNode(Hash []byte, conn net.Conn) (Node, int) {
 			if int(h[0]) == 0 {
 				break
 			}
-			fmt.Println(((int(length)-32)/64))
-			fmt.Println("body totale")
-			fmt.Println(answer[40:])
-			fmt.Println(answer[72+(i*64) : 104+(i*64)])
 			tmpc, tmpe := downloadNode(h, conn)
 			if tmpe != 0 {
 				return createDirectory(""), tmpe
 			}
-			AddChild(n, tmpc)
-			n.Childs[i].name = string(name)
+			tmpc.name=string(name)
+			n=AddChild(n, tmpc)
 		}
-		if !compareHash(n.Hash, Hash) {
+
+		if compareHash(n.Hash, Hash) {
 			return n, 0 //TODO faire un truc qui detecte la vraie longueur des données
 		} else {
 			return createDirectory(""), 3

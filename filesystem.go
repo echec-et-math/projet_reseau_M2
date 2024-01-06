@@ -85,7 +85,11 @@ func createFile(filepath string) Node {
 }
 func createChunk(content []byte, l int) Node {
 	h := sha256.New()
-	h.Write(content)
+	tmpc := []byte{}
+	t:= make([]byte,1)
+	t[0]=0
+	tmpc=append(t,content...)
+	h.Write(tmpc)
 	return Node{
 		Directory: false,
 		Big:       false,
@@ -97,13 +101,16 @@ func createChunk(content []byte, l int) Node {
 func createBigFile(ch []Node, nb int) Node {
 	s := []byte{}
 	h := sha256.New()
+	t:= make([]byte,1)
+	t[0]=1
+	s=append(s,t[0])
 	n := Node{
 		Directory: false,
 		Big:       true,
 		nbchild:   nb,
 		Childs:    make([]Node, 32),
 	}
-	for i := 1; i < nb; i++ {
+	for i := 0; i < nb; i++ {
 		s = append(s, ch[i].Hash...)
 		n.Childs[i] = ch[i]
 		n.Childs[i].Parent = &n
@@ -127,19 +134,29 @@ func copyChunk(n *Node) *Node {
 /**
 ne sert qu'a ajouter des node a un directory, si ce n'est pas un directory ne fait rien
 */
-func AddChild(p Node, c Node) {
+func AddChild(p Node, c Node) Node{
 	if p.Directory && p.nbchild < 16 {
 		c.Parent = &p
 		p.Childs[p.nbchild] = c
+		p.nbchild=p.nbchild+1
+		fmt.Println(p.nbchild)
 		h := sha256.New()
 		s := []byte{}
+		t:= make([]byte,1)
+		t[0]=2
+		s=append(s,t...)
+	
 		for i := 0; i < p.nbchild; i++ {
+			s = append(s, []byte(p.Childs[i].name)...)
 			s = append(s, p.Childs[i].Hash...)
+			
 
 		}
 		h.Write(s)
 		p.Hash = h.Sum(nil)
+		
 	}
+	return p
 }
 func createDirectory(n string) Node {
 	return Node{
