@@ -5,6 +5,7 @@ import (
 	"crypto/elliptic"
 	"crypto/rand"
 	"crypto/sha256"
+	"encoding/hex"
 	"log"
 	"math/big"
 )
@@ -53,6 +54,7 @@ func signByteSlice(data []byte, privkey *ecdsa.PrivateKey) []byte {
 	signature := make([]byte, 64)
 	r.FillBytes(signature[:32])
 	s.FillBytes(signature[32:])
+	logProgress("Computed signature : " + hex.EncodeToString(signature))
 	return append(data, signature...)
 }
 
@@ -64,18 +66,10 @@ func verify(data []byte, signature []byte, pubkey *ecdsa.PublicKey) bool {
 	return ecdsa.Verify(pubkey, hashed[:], &r, &s)
 }
 
-/*
-	Setters for additional info throughout the requests
-*/
+func exportKey() {
 
-/* func addHelloSignature(exchange *HelloExchange) {
-	exchange.Signature = blablabla // TODO
-} */
+}
 
-/* func addDatumSignature(datum *Datum) {
-	datum.Signature = blablabla // TODO
-} */
+func importKey() {
 
-/* func addMsgSignature(msg *P2PMsg) {
-	msg.Signature = blablabla // TODO
-} */
+}

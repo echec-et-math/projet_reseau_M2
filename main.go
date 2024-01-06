@@ -18,6 +18,10 @@ import (
 	GLOBAL VARS
 */
 
+var helloExchangeDone = false
+var pubkeyExchangeDone = false
+var roothashExchangeDone = false
+
 var hasPubKey = false
 var hasFiles = false
 
@@ -72,6 +76,25 @@ func registerPeer(name string, pubkey []byte, roothash []byte) {
 	signAndWrite(servconn, s)
 	logProgress("Handshake initiated")
 	readMsg(servconn)
+	servconn.SetReadDeadline(time.Now().Add(time.Second * 5))
+	readMsg(servconn) // let the server speak first
+	if !pubkeyExchangeDone {
+		req2 := buildPubkeyRequestNoPubkey(91)
+		if hasPubKey {
+			req2 = buildPubkeyRequestWithPubkey(91, pubkey)
+		}
+		signAndWrite(servconn, requestToByteSlice(req2))
+	}
+	servconn.SetReadDeadline(time.Now().Add(time.Second * 5))
+	readMsg(servconn) // again
+	if !roothashExchangeDone {
+		req3 := buildRootRequestNoData(157)
+		if hasFiles {
+			req3 = buildRootRequest(157, roothash)
+		}
+		signAndWrite(servconn, requestToByteSlice(req3))
+	}
+	readMsg(servconn) // and again
 	logProgress("Handshake successful.")
 	return
 }
@@ -142,6 +165,9 @@ func main() { // CLI Merge from REST and P2P (UDP)
 			case "debugoff":
 				debugmode = false
 				break
+			case "exportKey":
+				exportKey()
+				break
 			case "forceerron":
 				force_err = true
 				break
@@ -166,7 +192,13 @@ func main() { // CLI Merge from REST and P2P (UDP)
 			case "getRootHash":
 				getPeerRootHashFlag = secondWord
 				break
+			case "importKey":
+				importKey()
+				break
 			case "register":
+				helloExchangeDone = false
+				pubkeyExchangeDone = false
+				roothashExchangeDone = false
 				servconn, _ = net.Dial("udp", serv_addr)
 				//peerpubkey, peerHasKey = fetchPubKey(serv_addr_noport)
 				//Uncomment above when the REST Server will sign its HelloReply properly
@@ -197,6 +229,9 @@ func main() { // CLI Merge from REST and P2P (UDP)
 					fmt.Println("Already connected to someone : please disconnect beforehand.")
 					break
 				}
+				helloExchangeDone = false
+				pubkeyExchangeDone = false
+				roothashExchangeDone = false
 				currentP2PConn, err = net.Dial("udp", secondWord)
 				if err != nil {
 					fmt.Println("Error connecting to the peer.")
@@ -204,7 +239,7 @@ func main() { // CLI Merge from REST and P2P (UDP)
 						log.Fatal(err)
 					}
 				} else {
-					//peerpubkey, peerHasKey = fetchPubKey(secondWord)
+					peerpubkey, peerHasKey = fetchPubKey(secondWord)
 					// Uncomment above when we figure out signatures
 					salute(name)
 					connectedToPeer = true
@@ -227,6 +262,9 @@ func main() { // CLI Merge from REST and P2P (UDP)
 			case "disconnect":
 				if connectedToPeer {
 					currentP2PConn.Close()
+					helloExchangeDone = false
+					pubkeyExchangeDone = false
+					roothashExchangeDone = false
 					connectedToPeer = false
 				}
 				RESTMode = true
@@ -248,14 +286,6 @@ func main() { // CLI Merge from REST and P2P (UDP)
 			case "exit":
 				exitFlag = true
 				break
-			case "op":
-				if !connectedToPeer {
-					fmt.Println("We're not currently connected to a peer !")
-				} else {
-					break // TODO
-				}
-				// need precise parsing of the actual operation here through the secondword, or add additional prompts
-				// in case of connection : maintain the connection with a goroutine
 			case "setName":
 				name = secondWord
 				break
