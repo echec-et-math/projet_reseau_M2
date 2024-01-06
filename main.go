@@ -36,6 +36,8 @@ var currentAbr = createDirectory("root")
 var currentP2PConn net.Conn
 var connectedToPeer = false
 
+var conn net.Conn // REST server connection
+
 var peerpubkey = make([]byte, 64)
 var peerHasKey = false
 
@@ -64,7 +66,7 @@ func logProgress(msg string) {
 	REST register module
 */
 
-func registerPeer(conn net.Conn, name string, hasPubkey bool, hasFiles bool, pubkey []byte, roothash []byte) {
+func registerPeer(name string, hasPubkey bool, hasFiles bool, pubkey []byte, roothash []byte) {
 	// dial server
 	for {
 		req := buildHelloRequest(name, 23, 0)
@@ -185,7 +187,7 @@ func main() { // CLI Merge from REST and P2P (UDP)
 				getPeerRootHashFlag = secondWord
 				break
 			case "register":
-				registerPeer(conn, name, hasPubKey, hasFiles, pubkey, roothash)
+				registerPeer(name, hasPubKey, hasFiles, pubkey, roothash)
 				break
 			case "setName":
 				name = secondWord
@@ -257,9 +259,9 @@ func main() { // CLI Merge from REST and P2P (UDP)
 				} else {
 					byteslice, _ := hex.DecodeString(secondWord)
 					logProgress("on vas demander un download")
-					tmp2,_:=os.Create("./test")
-					tmp:=downloadNode(byteslice, currentP2PConn)
-					WriteFile(tmp,0,*tmp2)
+					tmp2, _ := os.Create("./test")
+					tmp := downloadNode(byteslice, currentP2PConn)
+					WriteFile(tmp, 0, *tmp2)
 				}
 			case "exit":
 				exitFlag = true
