@@ -343,7 +343,12 @@ func downloadNode(Hash []byte, conn net.Conn) (Node,int) {
 	if datatype == 0 {
 		//chunk
 		logProgress("un chunk de load")
-		return createChunk(answer[40:], int(length-32)),0 //TODO faire un truc qui detecte la vraie longueur des données
+		c:=createChunk(answer[40:], int(length-32))
+		if(compareHash(c.Hash,Hash)){
+			return c,0 //TODO faire un truc qui detecte la vraie longueur des données
+		}else{
+			return createDirectory(""),1
+		}
 
 	}
 	if datatype == 1 {
@@ -360,7 +365,13 @@ func downloadNode(Hash []byte, conn net.Conn) (Node,int) {
 				break
 			}
 		}
-		return createBigFile(bf, len(bf)),0
+		c:=createBigFile(bf, len(bf))
+		if(compareHash(c.Hash,Hash)){
+			return c,0 //TODO faire un truc qui detecte la vraie longueur des données
+		}else{
+			return createDirectory(""),1
+		}
+
 	}
 	if datatype == 2 {
 		//directory
@@ -381,7 +392,11 @@ func downloadNode(Hash []byte, conn net.Conn) (Node,int) {
 			AddChild(n, tmpc)
 			n.Childs[i].name = string(name)
 		}
-		return n,0
+		if(compareHash(n.Hash,Hash)){
+			return n,0 //TODO faire un truc qui detecte la vraie longueur des données
+		}else{
+			return createDirectory(""),1
+		}
 	}
 	logProgress("ya un blem")
 	return createDirectory(""),1
