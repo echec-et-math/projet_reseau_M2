@@ -403,9 +403,14 @@ func salute(name string) {
 		} else {
 			currentP2PConn.Write(helloToByteSlice(req))
 		}
-		currentP2PConn.SetReadDeadline(time.Now().Add(time.Second * 5)) // accept a one-minute delay for pubkey or roothash
+		currentP2PConn.SetReadDeadline(time.Now().Add(time.Second * 5)) // accept a delay for pubkey or roothash
 		rep := readMsg(currentP2PConn)                                  // TODO signature mode. We read all the replys and process them, until an empty message tells us we're done.
 		if len(rep) != 0 {
+			if hasPubKey && signaturemode {
+				go keepaliveSignature(currentP2PConn)
+			} else {
+				go keepaliveSignature(currentP2PConn)
+			}
 			return
 		}
 	}
@@ -425,7 +430,7 @@ func salute(name string) {
 	} else {
 		conn.Write(helloToByteSlice(req))
 	}
-	conn.SetReadDeadline(time.Now().Add(time.Second * 5)) // accept a one-minute delay for pubkey or roothash
+	conn.SetReadDeadline(time.Now().Add(time.Second * 5)) // accept a delay for pubkey or roothash
 	readMsg(conn)
 	conn.Write(requestToByteSlice(natreq)) // server handles the traversal
 	// now we just listen through our listener

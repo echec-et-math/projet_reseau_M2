@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"crypto/ecdsa"
 	"crypto/tls"
-	"encoding/binary"
 	"encoding/hex"
 	"fmt"
 	"log"
@@ -68,35 +67,17 @@ func logProgress(msg string) {
 
 func registerPeer(name string, hasPubkey bool, hasFiles bool, pubkey []byte, roothash []byte) {
 	// dial server
-	for {
-		req := buildHelloRequest(name, 23, 0)
-		if hasPubkey {
-			// sign the Hello
-		}
+	req := buildHelloRequest(name, 23, 0)
+	if hasPubkey && signaturemode {
+		conn.Write(signByteSlice(helloToByteSlice(req), privkey))
+	} else {
 		s := helloToByteSlice(req)
 		conn.Write(s)
-		logProgress("Handshake initiated")
-		rep := readMsg(conn)
-		logProgress("Handshake response received")
-		id := binary.BigEndian.Uint32(rep[0:4])
-		if id != 23 || force_err {
-			if debugmode {
-				fmt.Printf("Warning : unmatching ID in handshake response, expected 23 and got %d\n", id)
-				fmt.Println("Our request : " + string(helloToByteSlice(req)))
-				fmt.Println("Full hex representation of our request : " + hex.EncodeToString(helloToByteSlice(req)))
-				fmt.Println("Server reply : " + string(rep))
-				fmt.Println("Full hex representation of the reply : " + hex.EncodeToString(rep))
-			}
-			fmt.Println("Handshake failed, retrying.")
-		} else {
-			conn.SetReadDeadline(time.Now().Add(5 * time.Second)) // we need the last read to timeout to tell we're actually done with the server
-			readMsg(conn)                                         // our read will auto-sort the requests
-			conn.SetReadDeadline(time.Time{})                     // reset deadline
-			logProgress("Handshake successful.")
-			return
-		}
 	}
-	// maintain connection through goroutine until interruption
+	logProgress("Handshake initiated")
+	readMsg(conn)
+	logProgress("Handshake successful.")
+	return
 }
 
 func main() { // CLI Merge from REST and P2P (UDP)
@@ -106,11 +87,12 @@ func main() { // CLI Merge from REST and P2P (UDP)
 		Transport: transport,
 		Timeout:   50 * time.Second,
 	}
-	conn, err := net.Dial("udp", serv_addr)
-	if err != nil {
-		fmt.Printf("%v\n", err)
-		return
-	}
+	conn, _ = net.Dial("udp", serv_addr)
+	req := buildHelloRequest("NoName", 0, 0)
+	conn.Write(helloToByteSlice(req))
+	conn.SetReadDeadline(time.Now().Add(time.Second * 5)) // accept a delay for pubkey or roothash
+	readMsg(conn)                                         // TODO signature mode. We read all the replys and process them, until an empty message tells us we're done.
+	//go keepaliveNoSignature(conn)
 	RESTMode := true
 	listPeersFlag := false
 	getPeerAddressesFlag := ""
