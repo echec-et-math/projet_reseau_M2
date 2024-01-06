@@ -258,7 +258,7 @@ func verifChunk(content []byte, Hash []byte) bool {
 }
 
 func compareHash(h1 []byte, h2 []byte) bool {
-	if len(h1) != len(h2) {
+	if len(h1) == len(h2) {
 		for i := 0; i < len(h1); i++ {
 			if h1[i] != h2[i] {
 				return false
@@ -266,6 +266,7 @@ func compareHash(h1 []byte, h2 []byte) bool {
 		}
 		return true
 	} else {
+
 		return false
 	}
 }
@@ -346,14 +347,16 @@ func downloadNode(Hash []byte, conn net.Conn) (Node, int) {
 		fmt.Printf("Download Node : found datatype of %d\n", datatype)
 	}
 	if !(compareHash(Hash, answer[7:39])) {
-		return createDirectory(""), 1
+		fmt.Println(answer[7:39])
+		fmt.Println(Hash)
+		return createDirectory(""), 6
 	}
 	if datatype == 0 {
 		//chunk
 		logProgress("un chunk de load")
 		c := createChunk(answer[40:], int(length-32))
 		if compareHash(c.Hash, Hash) {
-			return c, 0 //TODO faire un truc qui detecte la vraie longueur des données
+			return c, 0 
 		} else {
 			return createDirectory(""), 1
 		}
@@ -363,9 +366,10 @@ func downloadNode(Hash []byte, conn net.Conn) (Node, int) {
 		//big
 		var bf []Node
 		for i := 0; i < 32; i++ {
-			tmpc, tmpe := downloadNode(answer[40+(i*32):40+((i+1)*32)], conn)
+			
+			tmpc, tmpe := downloadNode(answer[(40+(i*32)):(40+((i+1)*32))], conn)
 			if tmpe == 1 {
-				return createDirectory(""), 1
+				return createDirectory(""), 2
 			}
 
 			bf = append(bf, tmpc)
@@ -377,7 +381,7 @@ func downloadNode(Hash []byte, conn net.Conn) (Node, int) {
 		if compareHash(c.Hash, Hash) {
 			return c, 0 //TODO faire un truc qui detecte la vraie longueur des données
 		} else {
-			return createDirectory(""), 1
+			return createDirectory(""), 5
 		}
 
 	}
@@ -395,7 +399,7 @@ func downloadNode(Hash []byte, conn net.Conn) (Node, int) {
 			}
 			tmpc, tmpe := downloadNode(h, conn)
 			if tmpe == 1 {
-				return createDirectory(""), 1
+				return createDirectory(""), 2
 			}
 			AddChild(n, tmpc)
 			n.Childs[i].name = string(name)
@@ -403,11 +407,11 @@ func downloadNode(Hash []byte, conn net.Conn) (Node, int) {
 		if compareHash(n.Hash, Hash) {
 			return n, 0 //TODO faire un truc qui detecte la vraie longueur des données
 		} else {
-			return createDirectory(""), 1
+			return createDirectory(""), 3
 		}
 	}
 	logProgress("ya un blem")
-	return createDirectory(""), 1
+	return createDirectory(""), 4
 
 }
 
