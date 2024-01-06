@@ -186,6 +186,7 @@ func readMsgWithSignature(conn net.Conn) []byte {
 	logProgress("Found signature : " + hex.EncodeToString(signature))
 	if !verify(res, signature, byteSliceToPubkey(peerpubkey)) {
 		logProgress("Invalid signature : skipping")
+		communicateError(conn, "Bad signature", msgtype)
 		return readMsgWithSignature(conn)
 	}
 	switch msgtype {
@@ -254,6 +255,16 @@ func signAndWrite(conn net.Conn, content []byte) {
 	} else {
 		conn.Write(content)
 	}
+}
+
+func communicateError(conn net.Conn, msg string, msgtype byte) {
+	var errrep *P2PMsg
+	if msgtype <= 127 {
+		errrep = buildErrorReply("Bad signature", 0)
+	} else {
+		errrep = buildErrorMessage("Bad signature", 0)
+	}
+	signAndWrite(conn, requestToByteSlice(errrep))
 }
 
 func verifChunk(content []byte, Hash []byte) bool {
