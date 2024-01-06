@@ -81,12 +81,20 @@ func readMsgNoSignature(conn net.Conn) []byte {
 			return make([]byte, 0)
 		}
 	}
+	
 	msgid := binary.BigEndian.Uint32(header[0:4])
 	msgtype := header[4]
 	length := binary.BigEndian.Uint16(header[5:7])
 	content := make([]byte, length)
 	conn.Read(content)
 	res := append(header, content...)
+	if(debugmode){
+		fmt.Println("recus:")
+		fmt.Println("Id: ", res[0:4])
+		fmt.Println("type: ", res[4])
+		fmt.Println("length: ", res[5:7])
+		fmt.Println("body:",res[7:length])
+	}
 	displayError(res)
 	fmt.Println(hex.EncodeToString(res))
 	switch msgtype {
@@ -164,6 +172,13 @@ func readMsgWithSignature(conn net.Conn) []byte {
 	if !verify(res, signature, byteSliceToPubkey(peerpubkey)) {
 		logProgress("Invalid signature : skipping")
 		return readMsgWithSignature(conn)
+	}
+	if(debugmode){
+		fmt.Println("recus:")
+		fmt.Println("Id: ", res[0:4])
+		fmt.Println("type: ", res[4])
+		fmt.Println("length: ", res[5:7])
+		fmt.Println("body:",res[7:length])
 	}
 	switch msgtype {
 	case 0:
@@ -288,20 +303,18 @@ func sendDatum(n Node, con net.Conn) {
 
 func downloadNode(Hash []byte, conn net.Conn) Node{
 	currentP2PConn.SetReadDeadline(time.Time{})
-	logProgress("Asking for hash : " + string(hex.EncodeToString(Hash)))
+	logProgress("Asking for hash : " + string(hex.EncodeToString(Hash))+"/n envoie de :")
 	tmp := buildDatumRequest(Hash, 89)
 	conn.Write(requestToByteSlice(tmp))
 	conn.SetReadDeadline(time.Now().Add(5 * time.Second)) // we need the last read to timeout to tell we're actually done with the server
 	//conn.Write(requestToByteSlice(tmp))                   // re-ask, after the empty read
 	answer := readMsg(conn)
 	displayError(answer)
-	logProgress("HERE WE ARE")
 	length := binary.BigEndian.Uint16(answer[5:7])
 	if debugmode {
 		fmt.Printf("Download Node : found length of %d\n", length)
 	}
 	datatype := answer[39]
-	fmt.Println("bloup")
 	if debugmode {
 		fmt.Printf("Download Node : found datatype of %d\n", datatype)
 	}
