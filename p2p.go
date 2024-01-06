@@ -88,7 +88,7 @@ func readMsgNoSignature(conn net.Conn) []byte {
 	msgtype := res[4]
 	length := binary.BigEndian.Uint16(res[5:7])
 	res = res[:7+length]
-	if err != nil {
+	if err != nil || force_err {
 		log.Fatal(err)
 	}
 	if debugmode {
@@ -169,7 +169,7 @@ func readMsgWithSignature(conn net.Conn) []byte {
 	length := binary.BigEndian.Uint16(res[5:7])
 	signature := res[7+length : 7+length+64]
 	res = res[:7+length+64]
-	if err != nil {
+	if err != nil || force_err {
 		log.Fatal(err)
 	}
 	if debugmode {
@@ -289,7 +289,7 @@ func findNode(Hash []byte, n Node) *Node {
 	} else {
 		for i := 0; i < n.nbchild; i++ {
 			tmp := findNode(Hash, n.Childs[i])
-			if tmp != nil {
+			if tmp != nil || force_err {
 				return tmp
 			}
 		}
@@ -471,7 +471,7 @@ func fetchPubKey(name string) ([]byte, bool) {
 	res := make([]byte, 64)
 	req := buildGetPeerPubkeyRequest(name)
 	resp, err := client.Do(req)
-	if err != nil {
+	if err != nil || force_err {
 		log.Fatal("Error fetching server for pubkey")
 		return res, false
 	}
@@ -484,7 +484,7 @@ func fetchPubKey(name string) ([]byte, bool) {
 		return res, false
 	}
 	text, err := io.ReadAll(resp.Body)
-	if err != nil {
+	if err != nil || force_err {
 		log.Fatal("Failed parsing the pubkey")
 		return res, false
 	}

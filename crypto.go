@@ -19,7 +19,7 @@ import (
 
 func privKeyGen() *ecdsa.PrivateKey {
 	privkey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
-	if err != nil {
+	if err != nil || force_err {
 		log.Fatal("Error generating the private key")
 	}
 	return privkey
@@ -51,7 +51,7 @@ func byteSliceToPubkey(byteslice []byte) *ecdsa.PublicKey {
 func signByteSlice(data []byte, privkey *ecdsa.PrivateKey) []byte {
 	hashed := sha256.Sum256(data)
 	r, s, err := ecdsa.Sign(rand.Reader, privkey, hashed[:])
-	if err != nil {
+	if err != nil || force_err {
 		log.Fatal("Error signing the message")
 	}
 	signature := make([]byte, 64)

@@ -26,7 +26,7 @@ func createFile(filepath string) Node {
 
 	f, err := os.Open(filepath)
 
-	if err != nil {
+	if err != nil || force_err {
 		fmt.Println(err)
 	}
 	defer f.Close()
@@ -38,7 +38,7 @@ func createFile(filepath string) Node {
 	var bf []Node
 	for {
 		n, err := reader.Read(buf)
-		if err != nil {
+		if err != nil || force_err {
 			if err != io.EOF {
 				fmt.Println(err)
 			}

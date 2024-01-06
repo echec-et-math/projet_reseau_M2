@@ -129,7 +129,7 @@ func main() { // CLI Merge from REST and P2P (UDP)
 		fifthWord := ""
 		fmt.Print(">")
 		line, err := reader.ReadString('\n')
-		if err != nil {
+		if err != nil || force_err {
 			log.Fatal(err)
 		}
 		line = strings.ReplaceAll(line, "\n", "") // remove trailing newline
@@ -234,7 +234,7 @@ func main() { // CLI Merge from REST and P2P (UDP)
 				pubkeyExchangeDone = false
 				roothashExchangeDone = false
 				currentP2PConn, err = net.Dial("udp", secondWord)
-				if err != nil {
+				if err != nil || force_err {
 					fmt.Println("Error connecting to the peer.")
 					if debugmode {
 						log.Fatal(err)
