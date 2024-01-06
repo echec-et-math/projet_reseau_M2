@@ -5,9 +5,12 @@ import (
 	"crypto/elliptic"
 	"crypto/rand"
 	"crypto/sha256"
+	"crypto/x509"
 	"encoding/hex"
+	"encoding/pem"
 	"log"
 	"math/big"
+	"os"
 )
 
 /*
@@ -66,10 +69,42 @@ func verify(data []byte, signature []byte, pubkey *ecdsa.PublicKey) bool {
 	return ecdsa.Verify(pubkey, hashed[:], &r, &s)
 }
 
-func exportKey() {
+func encode(privateKey *ecdsa.PrivateKey, publicKey *ecdsa.PublicKey) (string, string) {
+	x509Encoded, _ := x509.MarshalECPrivateKey(privateKey)
+	pemEncoded := pem.EncodeToMemory(&pem.Block{Type: "PRIVATE KEY", Bytes: x509Encoded})
 
+	x509EncodedPub, _ := x509.MarshalPKIXPublicKey(publicKey)
+	pemEncodedPub := pem.EncodeToMemory(&pem.Block{Type: "PUBLIC KEY", Bytes: x509EncodedPub})
+
+	return string(pemEncoded), string(pemEncodedPub)
+}
+
+func decode(pemEncoded string, pemEncodedPub string) (*ecdsa.PrivateKey, *ecdsa.PublicKey) {
+	block, _ := pem.Decode([]byte(pemEncoded))
+	x509Encoded := block.Bytes
+	privateKey, _ := x509.ParseECPrivateKey(x509Encoded)
+
+	blockPub, _ := pem.Decode([]byte(pemEncodedPub))
+	x509EncodedPub := blockPub.Bytes
+	genericPublicKey, _ := x509.ParsePKIXPublicKey(x509EncodedPub)
+	publicKey := genericPublicKey.(*ecdsa.PublicKey)
+
+	return privateKey, publicKey
+}
+
+var privkeyPEMpath = "./privkey.pem"
+var pubkeyPEMpath = "./pubkey.pem"
+
+func exportKey() {
+	privcode, pubcode := encode(privkey, byteSliceToPubkey(pubkey))
+	os.WriteFile(privkeyPEMpath, []byte(privcode), 0600)
+	os.WriteFile(pubkeyPEMpath, []byte(pubcode), 0600)
 }
 
 func importKey() {
-
+	privclear, _ := os.ReadFile(privkeyPEMpath)
+	pubclear, _ := os.ReadFile(pubkeyPEMpath)
+	var temp *ecdsa.PublicKey
+	privkey, temp = decode(string(privclear), string(pubclear))
+	pubkey = pubkeyToByteSlice(temp)
 }

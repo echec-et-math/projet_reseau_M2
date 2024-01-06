@@ -148,7 +148,7 @@ func createDirectory(n string) Node {
 		nbchild:   0,
 		Parent:    nil,
 		name:      n,
-		Childs:	   make([]Node, 16),
+		Childs:    make([]Node, 16),
 	}
 }
 func PrintTree(r Node, pre string) {
@@ -178,14 +178,4 @@ func WriteFile(current Node, index int, f os.File) int {
 		return index + 1024
 	}
 	// return -1 -> unreachable code
-}
-func importKey(f os.File) string{
-	reader := bufio.NewReader(f)
-	buf := make([]byte, 64)
-	_, err := reader.Read(buf)
-	return string(buf)
-}
-
-func exportKey(s []byte, f os.File) int{
-	f.WriteAt(s,0)
 }

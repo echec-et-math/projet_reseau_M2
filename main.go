@@ -184,7 +184,7 @@ func main() { // CLI Merge from REST and P2P (UDP)
 				privkey = privKeyGen()
 				pubkey = pubkeyToByteSlice(computePubKey(privkey))
 				hasPubKey = true
-				//fmt.Println("Public key : " + string(hex.EncodeToString(pubkey)))
+				fmt.Println("Public key : " + string(hex.EncodeToString(pubkey)))
 				break
 			case "getKey":
 				getPeerKeyFlag = secondWord
@@ -194,6 +194,7 @@ func main() { // CLI Merge from REST and P2P (UDP)
 				break
 			case "importKey":
 				importKey()
+				fmt.Println("Imported key : " + string(hex.EncodeToString(pubkey)))
 				break
 			case "register":
 				helloExchangeDone = false
