@@ -17,6 +17,8 @@ import (
 	PEER-TO-PEER SECTION
 */
 
+var MAX_MESSAGE_SIZE = 2048
+
 /*
 	Peer-to-peer structs for communication
 */
@@ -72,9 +74,8 @@ func readMsg(conn net.Conn) []byte {
 
 func readMsgNoSignature(conn net.Conn) []byte {
 	// first read until the length
-	res := make([]byte, 0)
-	header := make([]byte, 7)
-	_, err := conn.Read(header)
+	res := make([]byte, MAX_MESSAGE_SIZE)
+	_, err := conn.Read(res)
 	if err != nil || force_err {
 		logProgress("Error reading from UDP socket")
 		e := err.(net.Error)
@@ -83,20 +84,20 @@ func readMsgNoSignature(conn net.Conn) []byte {
 			return make([]byte, 0)
 		}
 	}
-	msgid := binary.BigEndian.Uint32(header[0:4])
-	msgtype := header[4]
-	length := binary.BigEndian.Uint16(header[5:7])
-	content := make([]byte, length)
-	conn.SetReadDeadline(time.Now().Add(time.Second * 5))
-	conn.Read(content)
-	res = append(append(res, header...), content...)
+	msgid := binary.BigEndian.Uint32(res[0:4])
+	msgtype := res[4]
+	length := binary.BigEndian.Uint16(res[5:7])
+	res = res[:7+length]
+	if err != nil {
+		log.Fatal(err)
+	}
 	if debugmode {
 		fmt.Println("recus:")
 		fmt.Println("Id: ", res[0:4])
 		fmt.Println("type: ", res[4])
 		fmt.Println("length: ", res[5:7])
 		if length >= 7 {
-			fmt.Println("body:", res[7:length])
+			fmt.Println("body:", res[7:7+length])
 		} else {
 			fmt.Println("body empty")
 		}
@@ -153,9 +154,8 @@ func readMsgNoSignature(conn net.Conn) []byte {
 
 func readMsgWithSignature(conn net.Conn) []byte {
 	// first read until the length
-	res := make([]byte, 0)
-	header := make([]byte, 7)
-	_, err := conn.Read(header)
+	res := make([]byte, MAX_MESSAGE_SIZE)
+	_, err := conn.Read(res)
 	if err != nil || force_err {
 		logProgress("Error reading from UDP socket")
 		e := err.(net.Error)
@@ -164,23 +164,21 @@ func readMsgWithSignature(conn net.Conn) []byte {
 			return make([]byte, 0)
 		}
 	}
-	msgid := binary.BigEndian.Uint32(header[0:4])
-	msgtype := header[4]
-	length := binary.BigEndian.Uint16(header[5:7])
-	content := make([]byte, length)
-	conn.SetReadDeadline(time.Now().Add(time.Second * 5))
-	conn.Read(content)
-	res = append(append(res, header...), content...)
-	displayError(res)
-	signature := make([]byte, 64)
-	conn.Read(signature)
+	msgid := binary.BigEndian.Uint32(res[0:4])
+	msgtype := res[4]
+	length := binary.BigEndian.Uint16(res[5:7])
+	signature := res[7+length : 7+length+64]
+	res = res[:7+length+64]
+	if err != nil {
+		log.Fatal(err)
+	}
 	if debugmode {
 		fmt.Println("recus:")
 		fmt.Println("Id: ", res[0:4])
 		fmt.Println("type: ", res[4])
 		fmt.Println("length: ", res[5:7])
 		if length >= 7 {
-			fmt.Println("body:", res[7:length])
+			fmt.Println("body:", res[7:7+length])
 		} else {
 			fmt.Println("body empty")
 		}
