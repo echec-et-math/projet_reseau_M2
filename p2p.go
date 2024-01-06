@@ -72,6 +72,7 @@ func readMsg(conn net.Conn) []byte {
 
 func readMsgNoSignature(conn net.Conn) []byte {
 	// first read until the length
+	res := make([]byte, 0)
 	header := make([]byte, 7)
 	_, err := conn.Read(header)
 	if err != nil || force_err {
@@ -86,8 +87,9 @@ func readMsgNoSignature(conn net.Conn) []byte {
 	msgtype := header[4]
 	length := binary.BigEndian.Uint16(header[5:7])
 	content := make([]byte, length)
+	conn.SetReadDeadline(time.Now().Add(time.Second * 5))
 	conn.Read(content)
-	res := append(header, content...)
+	res = append(append(res, header...), content...)
 	if debugmode {
 		fmt.Println("recus:")
 		fmt.Println("Id: ", res[0:4])
@@ -151,6 +153,7 @@ func readMsgNoSignature(conn net.Conn) []byte {
 
 func readMsgWithSignature(conn net.Conn) []byte {
 	// first read until the length
+	res := make([]byte, 0)
 	header := make([]byte, 7)
 	_, err := conn.Read(header)
 	if err != nil || force_err {
@@ -165,8 +168,9 @@ func readMsgWithSignature(conn net.Conn) []byte {
 	msgtype := header[4]
 	length := binary.BigEndian.Uint16(header[5:7])
 	content := make([]byte, length)
+	conn.SetReadDeadline(time.Now().Add(time.Second * 5))
 	conn.Read(content)
-	res := append(header, content...)
+	res = append(append(res, header...), content...)
 	displayError(res)
 	signature := make([]byte, 64)
 	conn.Read(signature)
@@ -315,7 +319,7 @@ func sendDatum(n Node, con net.Conn) {
 
 }
 
-func downloadNode(Hash []byte, conn net.Conn) (Node,int) {
+func downloadNode(Hash []byte, conn net.Conn) (Node, int) {
 	currentP2PConn.SetReadDeadline(time.Time{})
 	logProgress("Asking for hash : " + string(hex.EncodeToString(Hash)) + "\n envoi de :")
 	tmp := buildDatumRequest(Hash, 89)
@@ -323,6 +327,12 @@ func downloadNode(Hash []byte, conn net.Conn) (Node,int) {
 	conn.SetReadDeadline(time.Now().Add(5 * time.Second)) // we need the last read to timeout to tell we're actually done with the server
 	//conn.Write(requestToByteSlice(tmp))                   // re-ask, after the empty read
 	answer := readMsg(conn)
+	if len(answer) == 0 {
+		conn.Write(requestToByteSlice(tmp))
+		conn.SetReadDeadline(time.Now().Add(5 * time.Second)) // we need the last read to timeout to tell we're actually done with the server
+		answer = readMsg(conn)
+	}
+	conn.SetReadDeadline(time.Time{})
 	currentP2PConn.SetReadDeadline(time.Time{})
 	displayError(answer)
 	length := binary.BigEndian.Uint16(answer[5:7])
@@ -337,17 +347,17 @@ func downloadNode(Hash []byte, conn net.Conn) (Node,int) {
 	if debugmode {
 		fmt.Printf("Download Node : found datatype of %d\n", datatype)
 	}
-	if(!(compareHash(Hash,answer[7:39]))){
-		return createDirectory(""),1
+	if !(compareHash(Hash, answer[7:39])) {
+		return createDirectory(""), 1
 	}
 	if datatype == 0 {
 		//chunk
 		logProgress("un chunk de load")
-		c:=createChunk(answer[40:], int(length-32))
-		if(compareHash(c.Hash,Hash)){
-			return c,0 //TODO faire un truc qui detecte la vraie longueur des données
-		}else{
-			return createDirectory(""),1
+		c := createChunk(answer[40:], int(length-32))
+		if compareHash(c.Hash, Hash) {
+			return c, 0 //TODO faire un truc qui detecte la vraie longueur des données
+		} else {
+			return createDirectory(""), 1
 		}
 
 	}
@@ -355,9 +365,9 @@ func downloadNode(Hash []byte, conn net.Conn) (Node,int) {
 		//big
 		var bf []Node
 		for i := 0; i < 32; i++ {
-			tmpc,tmpe:=downloadNode(answer[40+(i*32):40+((i+1)*32)], conn)
-			if(tmpe==1){
-				return createDirectory(""),1
+			tmpc, tmpe := downloadNode(answer[40+(i*32):40+((i+1)*32)], conn)
+			if tmpe == 1 {
+				return createDirectory(""), 1
 			}
 
 			bf = append(bf, tmpc)
@@ -365,11 +375,11 @@ func downloadNode(Hash []byte, conn net.Conn) (Node,int) {
 				break
 			}
 		}
-		c:=createBigFile(bf, len(bf))
-		if(compareHash(c.Hash,Hash)){
-			return c,0 //TODO faire un truc qui detecte la vraie longueur des données
-		}else{
-			return createDirectory(""),1
+		c := createBigFile(bf, len(bf))
+		if compareHash(c.Hash, Hash) {
+			return c, 0 //TODO faire un truc qui detecte la vraie longueur des données
+		} else {
+			return createDirectory(""), 1
 		}
 
 	}
@@ -385,21 +395,21 @@ func downloadNode(Hash []byte, conn net.Conn) (Node,int) {
 			if int(h[0]) == 0 {
 				break
 			}
-			tmpc,tmpe:=downloadNode(h,conn)
-			if(tmpe==1){
-				return createDirectory(""),1
+			tmpc, tmpe := downloadNode(h, conn)
+			if tmpe == 1 {
+				return createDirectory(""), 1
 			}
 			AddChild(n, tmpc)
 			n.Childs[i].name = string(name)
 		}
-		if(compareHash(n.Hash,Hash)){
-			return n,0 //TODO faire un truc qui detecte la vraie longueur des données
-		}else{
-			return createDirectory(""),1
+		if compareHash(n.Hash, Hash) {
+			return n, 0 //TODO faire un truc qui detecte la vraie longueur des données
+		} else {
+			return createDirectory(""), 1
 		}
 	}
 	logProgress("ya un blem")
-	return createDirectory(""),1
+	return createDirectory(""), 1
 
 }
 
@@ -467,14 +477,14 @@ func salute(name string) {
 		natreq = buildNatTraversalReplyIPv6(addr, portnb)
 	}
 	if hasPubKey {
-		conn.Write(signByteSlice(helloToByteSlice(req), privkey))
+		servconn.Write(signByteSlice(helloToByteSlice(req), privkey))
 	} else {
-		conn.Write(helloToByteSlice(req))
+		servconn.Write(helloToByteSlice(req))
 	}
-	conn.SetReadDeadline(time.Now().Add(time.Second * 5)) // accept a delay for pubkey or roothash
-	readMsg(conn)
-	conn.Write(requestToByteSlice(natreq)) // server handles the traversal
+	servconn.SetReadDeadline(time.Now().Add(time.Second * 5)) // accept a delay for pubkey or roothash
+	readMsg(servconn)
+	servconn.Write(requestToByteSlice(natreq)) // server handles the traversal
 	// now we just listen through our listener
 	// in case of a Hello reception, we have to tell Hello AGAIN : TODO create a table to store this
-	conn.SetReadDeadline(time.Time{}) // reset deadline
+	servconn.SetReadDeadline(time.Time{}) // reset deadline
 }

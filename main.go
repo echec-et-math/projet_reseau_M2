@@ -36,7 +36,7 @@ var currentAbr = createFile("projet.pdf")
 var currentP2PConn net.Conn
 var connectedToPeer = false
 
-var conn net.Conn // REST server connection
+var servconn net.Conn // REST server connection
 var list net.Conn
 
 var peerpubkey = make([]byte, 64)
@@ -69,13 +69,9 @@ func registerPeer(name string, pubkey []byte, roothash []byte) {
 	// dial server
 	req := buildHelloRequest(name, 23, 0)
 	s := helloToByteSlice(req)
-	if hasPubKey {
-		signAndWrite(conn, s)
-	} else {
-		conn.Write(s)
-	}
+	signAndWrite(servconn, s)
 	logProgress("Handshake initiated")
-	readMsg(conn)
+	readMsg(servconn)
 	logProgress("Handshake successful.")
 	return
 }
@@ -171,7 +167,7 @@ func main() { // CLI Merge from REST and P2P (UDP)
 				getPeerRootHashFlag = secondWord
 				break
 			case "register":
-				conn, _ = net.Dial("udp", serv_addr)
+				servconn, _ = net.Dial("udp", serv_addr)
 				//peerpubkey, peerHasKey = fetchPubKey(serv_addr_noport)
 				//Uncomment above when the REST Server will sign its HelloReply properly
 				registerPeer(name, pubkey, roothash)
