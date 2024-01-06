@@ -41,6 +41,16 @@ func buildHelloRequest(name string, id uint32, extensions uint32) *HelloExchange
 	}
 }
 
+func buildHelloReply(id uint32) *HelloExchange {
+	buf := make([]byte, 2)
+	binary.BigEndian.PutUint16(buf, uint16(len(name)+4)) // +4 for extensions
+	return &HelloExchange{
+		Type:   129,
+		Length: buf,
+		Name:   []byte(name),
+	}
+}
+
 func buildErrorMessage(msg string, id uint32) *P2PMsg {
 	buf := make([]byte, 4)
 	buf2 := make([]byte, 2)
@@ -64,6 +74,31 @@ func buildErrorReply(msg string, id uint32) *P2PMsg {
 		Type:   128,
 		Length: buf2,
 		Body:   []byte(msg),
+	}
+}
+
+func buildPubkeyRequestNoPubkey(id uint32) *P2PMsg {
+	buf := make([]byte, 4)
+	binary.BigEndian.PutUint32(buf, id)
+	buf2 := make([]byte, 2)
+	binary.BigEndian.PutUint16(buf2, uint16(0))
+	return &P2PMsg{
+		Id:     buf,
+		Type:   3,
+		Length: buf2,
+	}
+}
+
+func buildPubkeyRequestWithPubkey(id uint32, pubkey []byte) *P2PMsg { // pubkey is 64 bytes long
+	buf := make([]byte, 4)
+	binary.BigEndian.PutUint32(buf, id)
+	buf2 := make([]byte, 2)
+	binary.BigEndian.PutUint16(buf2, uint16(64))
+	return &P2PMsg{
+		Id:     buf,
+		Type:   3,
+		Length: buf2,
+		Body:   pubkey,
 	}
 }
 
@@ -116,6 +151,32 @@ func buildRootReply(roothash []byte, id uint32) *P2PMsg { // hash is 32 bytes lo
 	}
 }
 
+func buildRootRequest(id uint32, roothash []byte) *P2PMsg { // hash is 32 bytes long
+	buf := make([]byte, 4)
+	binary.BigEndian.PutUint32(buf, id)
+	buf2 := make([]byte, 2)
+	binary.BigEndian.PutUint16(buf2, uint16(32))
+	return &P2PMsg{
+		Id:     buf,
+		Type:   4,
+		Length: buf2,
+		Body:   roothash,
+	}
+}
+
+func buildRootRequestNoData(id uint32) *P2PMsg {
+	buf := make([]byte, 4)
+	binary.BigEndian.PutUint32(buf, id)
+	buf2 := make([]byte, 2)
+	binary.BigEndian.PutUint16(buf2, uint16(32))
+	return &P2PMsg{
+		Id:     buf,
+		Type:   4,
+		Length: buf2,
+		Body:   emptyStringHash,
+	}
+}
+
 func buildDatumRequest(datahash []byte, id uint32) *P2PMsg { // 32 bytes long
 	logProgress("Building Datum request for hash : " + string(hex.EncodeToString(datahash)))
 	buf := make([]byte, 4)
@@ -129,74 +190,6 @@ func buildDatumRequest(datahash []byte, id uint32) *P2PMsg { // 32 bytes long
 		Body:   datahash,
 	}
 }
-
-/*
-	UNUSED FUNCTIONS FOR NOW
-	(We do not currently store data and don't expect peers to contact us)
-	(We cannot properly contact other peers for now)
-	(We do not support NAT traversal for now)
-*/
-
-func buildHelloReply(id uint32) *HelloExchange {
-	buf := make([]byte, 2)
-	binary.BigEndian.PutUint16(buf, uint16(len(name)+4)) // +4 for extensions
-	return &HelloExchange{
-		Type:   129,
-		Length: buf,
-		Name:   []byte(name),
-	}
-}
-
-func buildRootRequest(roothash []byte) *P2PMsg { // hash is 32 bytes long
-	buf := make([]byte, 2)
-	binary.BigEndian.PutUint16(buf, uint16(32))
-	return &P2PMsg{
-		Type:   4,
-		Length: buf,
-		Body:   roothash,
-	}
-}
-
-func buildPubkeyRequestNoPubkey() *P2PMsg {
-	buf := make([]byte, 2)
-	binary.BigEndian.PutUint16(buf, uint16(0))
-	return &P2PMsg{
-		Type:   3,
-		Length: buf,
-	}
-}
-
-func buildPubkeyRequestWithPubkey(pubkey []byte) *P2PMsg { // pubkey is 64 bytes long
-	buf := make([]byte, 2)
-	binary.BigEndian.PutUint16(buf, uint16(64))
-	return &P2PMsg{
-		Type:   3,
-		Length: buf,
-		Body:   pubkey,
-	}
-}
-
-func buildRootRequestNoData() *P2PMsg {
-	buf := make([]byte, 2)
-	binary.BigEndian.PutUint16(buf, uint16(32))
-	return &P2PMsg{
-		Type:   4,
-		Length: buf,
-		Body:   emptyStringHash,
-	}
-}
-
- func buildDatumReply(id []byte,value []byte, hash []byte) *Datum { // variable length, assumed storable on 2 bytes
-	buf := make([]byte, 2)
-	binary.BigEndian.PutUint16(buf, uint16(len(value)+32)) // add the hash length to the total
-	return &Datum{
-		Id:		id,
-		Type:   132,
-		Length: buf,
-		Hash:   hash, // 32 bytes
-		Value:  value,
-	}
-} 
 
 func buildNatTraversalRequestIPv4(ipv4addr []byte, port uint16) *P2PMsg {
 	buf := make([]byte, 2)
@@ -219,6 +212,24 @@ func buildNatTraversalRequestIPv6(ipv6addr []byte, port uint16) *P2PMsg {
 		Type:   6,
 		Length: buf,
 		Body:   append(ipv6addr, buf2...),
+	}
+}
+
+/*
+	UNUSED FUNCTIONS FOR NOW
+	(We do not currently store data and don't expect peers to contact us)
+	(We do not support NAT traversal for now)
+*/
+
+func buildDatumReply(id []byte, value []byte, hash []byte) *Datum { // variable length, assumed storable on 2 bytes
+	buf := make([]byte, 2)
+	binary.BigEndian.PutUint16(buf, uint16(len(value)+32)) // add the hash length to the total
+	return &Datum{
+		Id:     id,
+		Type:   132,
+		Length: buf,
+		Hash:   hash, // 32 bytes
+		Value:  value,
 	}
 }
 

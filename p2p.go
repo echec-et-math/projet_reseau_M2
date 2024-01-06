@@ -230,6 +230,18 @@ func readMsgWithSignature(conn net.Conn) []byte {
 		// NAT Traversal Request
 		// TODO
 		break
+	case 129:
+		// HelloReply
+		helloExchangeDone = true
+		break
+	case 130:
+		// PublicKeyReply
+		pubkeyExchangeDone = true
+		break
+	case 131:
+		// RootReply
+		roothashExchangeDone = true
+		break
 	default:
 		break
 	}
@@ -488,10 +500,30 @@ func salute(name string) {
 		rep := readMsg(currentP2PConn)                                  // TODO signature mode. We read all the replys and process them, until an empty message tells us we're done.
 		if len(rep) != 0 {
 			//keepalive(currentP2PConn, tree) // TODO FILL TREE
-			currentP2PConn.SetReadDeadline(time.Time{}) // reset delay
+			currentP2PConn.SetReadDeadline(time.Now().Add(time.Second * 5))
+			readMsg(currentP2PConn) // let the server speak first
+			if !pubkeyExchangeDone {
+				req2 := buildPubkeyRequestNoPubkey(83)
+				if hasPubKey {
+					req2 = buildPubkeyRequestWithPubkey(83, pubkey)
+				}
+				signAndWrite(currentP2PConn, requestToByteSlice(req2))
+			}
+			currentP2PConn.SetReadDeadline(time.Now().Add(time.Second * 5))
+			readMsg(currentP2PConn) // and again
+			if !roothashExchangeDone {
+				req3 := buildRootRequestNoData(132)
+				if hasFiles {
+					req3 = buildRootRequest(132, roothash)
+				}
+				signAndWrite(currentP2PConn, requestToByteSlice(req3))
+			}
+			currentP2PConn.SetReadDeadline(time.Now().Add(time.Second * 5))
+			readMsg(currentP2PConn) // and again
 			return
 		}
 	}
+
 	// 5 unsuccessful tries
 	logProgress("Failed to contact the peer after 5 tries. Issuing a NAT traversal request.")
 	remote_addr := currentP2PConn.RemoteAddr().String()
