@@ -184,7 +184,7 @@ func main() { // CLI Merge from REST and P2P (UDP)
 				privkey = privKeyGen()
 				pubkey = pubkeyToByteSlice(computePubKey(privkey))
 				hasPubKey = true
-				fmt.Println("Public key : " + string(hex.EncodeToString(pubkey)))
+				logProgress("Public key : " + string(hex.EncodeToString(pubkey)))
 				break
 			case "getKey":
 				getPeerKeyFlag = secondWord
