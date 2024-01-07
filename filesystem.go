@@ -186,7 +186,7 @@ func PrintTree(r Node, pre string) {
 		}
 	}
 }
-func WriteFile(current Node, index int, f os.File) int {
+func WriteFile(current Node, index int, f *os.File) int {
 	if current.Big {
 		tmp := index
 		for i := 0; i < current.nbchild; i++ {
@@ -194,8 +194,8 @@ func WriteFile(current Node, index int, f os.File) int {
 		}
 		return index + (1024 * current.nbchild)
 	} else {
-		f.WriteAt(current.Data, int64(index))
-		return index + 1024
+		f.Write(current.Data)
+		return 0
 	}
 	// return -1 -> unreachable code
 }
@@ -210,7 +210,7 @@ func WriteArbo(r Node, path string) int{
 	}else{
 		f,_:=os.Create(path+r.name)
 		defer f.Close()
-		//WriteFile(r,0,*f)
+		WriteFile(r,0,f)
 		return 0
 	}
 	return -1
