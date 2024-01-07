@@ -186,7 +186,7 @@ func readMsgWithSignature(conn net.Conn) []byte {
 	logProgress("Found signature : " + hex.EncodeToString(signature))
 	if !verify(res, signature, byteSliceToPubkey(peerpubkey)) {
 		logProgress("Invalid signature : skipping")
-		communicateError(conn, "Bad signature", msgtype)
+		communicateError(conn, "Bad signature", msgtype, msgid)
 		return readMsgWithSignature(conn)
 	}
 	switch msgtype {
@@ -200,6 +200,9 @@ func readMsgWithSignature(conn net.Conn) []byte {
 		return readMsgWithSignature(conn)
 	case 2:
 		// Hello
+		if binary.BigEndian.Uint32(res[7:11]) != 0 {
+			communicateError(conn, "Unmatching extensions", msgtype, msgid)
+		}
 		rep := buildHelloReply(msgid)
 		signAndWrite(conn, helloToByteSlice(rep))
 		return readMsgWithSignature(conn)
@@ -207,7 +210,7 @@ func readMsgWithSignature(conn net.Conn) []byte {
 		// PublicKey
 		logProgress("Pubkey request received")
 		if !helloExchangeDone {
-			communicateError(conn, "Please say hello first", msgtype)
+			communicateError(conn, "Please say hello first", msgtype, msgid)
 			break
 		}
 		rep := buildPubkeyReplyNoPubkey(msgid)
@@ -220,7 +223,7 @@ func readMsgWithSignature(conn net.Conn) []byte {
 		// Root
 		logProgress("Root hash request received")
 		if !helloExchangeDone {
-			communicateError(conn, "Please say hello first", msgtype)
+			communicateError(conn, "Please say hello first", msgtype, msgid)
 			break
 		}
 		rep := buildRootReply(emptyStringHash, msgid)
@@ -234,7 +237,7 @@ func readMsgWithSignature(conn net.Conn) []byte {
 	case 5:
 		// Datum
 		if !helloExchangeDone {
-			communicateError(conn, "Please say hello first", msgtype)
+			communicateError(conn, "Please say hello first", msgtype, msgid)
 		}
 		// TODO
 		break
@@ -249,7 +252,7 @@ func readMsgWithSignature(conn net.Conn) []byte {
 	case 130:
 		// PublicKeyReply
 		if !helloExchangeDone {
-			communicateError(conn, "Please say hello first", msgtype)
+			communicateError(conn, "Please say hello first", msgtype, msgid)
 			break
 		}
 		pubkeyExchangeDone = true
@@ -257,17 +260,17 @@ func readMsgWithSignature(conn net.Conn) []byte {
 	case 131:
 		// RootReply
 		if !helloExchangeDone {
-			communicateError(conn, "Please say hello first", msgtype)
+			communicateError(conn, "Please say hello first", msgtype, msgid)
 			break
 		}
 		roothashExchangeDone = true
 		break
 	default:
 		if !helloExchangeDone {
-			communicateError(conn, "Please say hello first. Also I don't know this message type.", msgtype)
+			communicateError(conn, "Please say hello first. Also I don't know this message type.", msgtype, msgid)
 			break
 		}
-		communicateError(conn, "Unknown message type.", msgtype)
+		communicateError(conn, "Unknown message type.", msgtype, msgid)
 		break
 	}
 	return res
@@ -281,10 +284,10 @@ func signAndWrite(conn net.Conn, content []byte) {
 	}
 }
 
-func communicateError(conn net.Conn, msg string, msgtype byte) {
+func communicateError(conn net.Conn, msg string, msgtype byte, msgid uint32) {
 	var errrep *P2PMsg
 	if msgtype <= 127 {
-		errrep = buildErrorReply("Bad signature", 0)
+		errrep = buildErrorReply("Bad signature", msgid)
 	} else {
 		errrep = buildErrorMessage("Bad signature", 0)
 	}
