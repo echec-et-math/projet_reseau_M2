@@ -23,7 +23,7 @@ var pubkeyExchangeDone = false
 var roothashExchangeDone = false
 
 var hasPubKey = false
-var hasFiles = false
+var hasFiles = true
 
 var pubkey = make([]byte, 64)
 var privkey *ecdsa.PrivateKey
@@ -45,6 +45,8 @@ var list net.Conn
 
 var peerpubkey = make([]byte, 64)
 var peerHasKey = false
+
+var issuedTraversal = false
 
 var debugmode = false
 var force_err = false // this forces error-handling routines to happen, even if nothing failed
@@ -204,6 +206,7 @@ func main() { // CLI Merge from REST and P2P (UDP)
 				//peerpubkey, peerHasKey = fetchPubKey(serv_addr_noport)
 				//Uncomment above when the REST Server will sign its HelloReply properly
 				registerPeer(name, pubkey, roothash)
+				go keepalive(servconn, &currentAbr)
 				break
 			case "setName":
 				name = secondWord
@@ -280,7 +283,7 @@ func main() { // CLI Merge from REST and P2P (UDP)
 					if tmpe != 0 {
 						fmt.Printf("Erreur lors du download,  %d \n", tmpe)
 					} else {
-						WriteArbo(tmp,"./testdump")
+						WriteArbo(tmp, "./testdump")
 					}
 				}
 			case "exit":

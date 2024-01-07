@@ -116,6 +116,10 @@ func readMsgNoSignature(conn net.Conn) []byte {
 		// Hello
 		rep := buildHelloReply(msgid)
 		signAndWrite(conn, helloToByteSlice(rep))
+		if issuedTraversal {
+			req := buildHelloRequest(name, 7777, 0)
+			signAndWrite(conn, helloToByteSlice(req))
+		}
 		return readMsgNoSignature(conn)
 	case 3:
 		// PublicKey
@@ -142,9 +146,41 @@ func readMsgNoSignature(conn net.Conn) []byte {
 		break
 	case 6:
 		// NAT Traversal Request
-		// TODO
+		communicateError(conn, "I'm not the REST server", msgtype, msgid)
+		break
+	case 7:
+		// NAT Traversal
+		currentP2PConn, _ = net.Dial("udp", string(res[7:7+length]))
+		req := buildHelloRequest(name, 8888, 0)
+		signAndWrite(currentP2PConn, helloToByteSlice(req))
+		return readMsgNoSignature(conn)
+	case 129:
+		// HelloReply
+		helloExchangeDone = true
+		issuedTraversal = false
+		break
+	case 130:
+		// PublicKeyReply
+		if !helloExchangeDone {
+			communicateError(conn, "Please say hello first", msgtype, msgid)
+			break
+		}
+		pubkeyExchangeDone = true
+		break
+	case 131:
+		// RootReply
+		if !helloExchangeDone {
+			communicateError(conn, "Please say hello first", msgtype, msgid)
+			break
+		}
+		roothashExchangeDone = true
 		break
 	default:
+		if !helloExchangeDone {
+			communicateError(conn, "Please say hello first + unknown message type", msgtype, msgid)
+			break
+		}
+		communicateError(conn, "Unknown message type.", msgtype, msgid)
 		break
 	}
 	return res
@@ -203,6 +239,10 @@ func readMsgWithSignature(conn net.Conn) []byte {
 		}
 		rep := buildHelloReply(msgid)
 		signAndWrite(conn, helloToByteSlice(rep))
+		if issuedTraversal {
+			req := buildHelloRequest(name, 7777, 0)
+			signAndWrite(conn, helloToByteSlice(req))
+		}
 		return readMsgWithSignature(conn)
 	case 3:
 		// PublicKey
@@ -240,11 +280,18 @@ func readMsgWithSignature(conn net.Conn) []byte {
 		break
 	case 6:
 		// NAT Traversal Request
-		// TODO
+		communicateError(conn, "I'm not the REST server", msgtype, msgid)
 		break
+	case 7:
+		// NAT Traversal
+		currentP2PConn, _ = net.Dial("udp", string(res[7:7+length]))
+		req := buildHelloRequest(name, 8888, 0)
+		signAndWrite(currentP2PConn, helloToByteSlice(req))
+		return readMsgWithSignature(conn)
 	case 129:
 		// HelloReply
 		helloExchangeDone = true
+		issuedTraversal = false
 		break
 	case 130:
 		// PublicKeyReply
@@ -546,7 +593,7 @@ func salute(name string) {
 			return
 		}
 	}
-
+	issuedTraversal = true
 	// 5 unsuccessful tries
 	logProgress("Failed to contact the peer after 5 tries. Issuing a NAT traversal request.")
 	remote_addr := currentP2PConn.RemoteAddr().String()
@@ -554,19 +601,28 @@ func salute(name string) {
 	addr, portnb := splitaddr(remote_addr)
 	var natreq *P2PMsg
 	if isIPV4 {
-		natreq = buildNatTraversalRequestIPv4(addr, portnb)
+		natreq = buildNatTraversalRequestIPv4(addr, portnb, 875)
 	} else {
-		natreq = buildNatTraversalReplyIPv6(addr, portnb)
+		natreq = buildNatTraversalReplyIPv6(addr, portnb, 875)
 	}
-	if hasPubKey {
-		servconn.Write(signByteSlice(helloToByteSlice(req), privkey))
-	} else {
-		servconn.Write(helloToByteSlice(req))
+	for {
+		if hasPubKey {
+			servconn.Write(signByteSlice(helloToByteSlice(req), privkey))
+		} else {
+			servconn.Write(helloToByteSlice(req))
+		}
+		servconn.SetReadDeadline(time.Now().Add(time.Second * 5)) // accept a delay for pubkey or roothash
+		readMsg(servconn)
+		servconn.Write(requestToByteSlice(natreq)) // server handles the traversal
+		servconn.SetReadDeadline(time.Time{})      // reset deadline
+		// now we just listen through our listener
+		currentP2PConn.SetReadDeadline(time.Now().Add(time.Minute * 2)) // need a long delay
+		readMsg(currentP2PConn)
+		if !issuedTraversal {
+			break
+		}
+		logProgress("NAT Traversal unsuccessful. Retrying.")
 	}
-	servconn.SetReadDeadline(time.Now().Add(time.Second * 5)) // accept a delay for pubkey or roothash
-	readMsg(servconn)
-	servconn.Write(requestToByteSlice(natreq)) // server handles the traversal
-	// now we just listen through our listener
-	// in case of a Hello reception, we have to tell Hello AGAIN : TODO create a table to store this
-	servconn.SetReadDeadline(time.Time{}) // reset deadline
+	currentP2PConn.SetReadDeadline(time.Time{})
+	logProgress("NAT Traversal successful")
 }
