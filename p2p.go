@@ -264,7 +264,7 @@ func readMsgWithSignature(conn net.Conn) []byte {
 		break
 	default:
 		if !helloExchangeDone {
-			communicateError(conn, "Please say hello first. Also I don't know this message type.", msgtype, msgid)
+			communicateError(conn, "Please say hello first + unknown message type", msgtype, msgid)
 			break
 		}
 		communicateError(conn, "Unknown message type.", msgtype, msgid)
