@@ -200,21 +200,19 @@ func WriteFile(current Node) []byte {
 }
 func WriteArbo(r Node, path string) int {
 	if r.Directory {
-		/*err:=os.MkdirAll(path+r.name, 0777)
+		err:=os.MkdirAll(path, 0777)
 		if err != nil {
 			fmt.Println("on essaie de creer un dossier")
 			panic(err)
-		}*/
+		}
 		for i := 0; i < r.nbchild; i++ {
-			WriteArbo(r.Childs[i], path)
+			WriteArbo(r.Childs[i], path+"/"+string(i))
 		}
 		return 0
 	} else {
 		s:=WriteFile(r)
 		n:=path+r.name
 		n=supp0(n)
-		fmt.Println([]byte(n))
-		fmt.Println([]byte("./testdumpabout.txt"))
 		err:=os.WriteFile(n,s, 0666)
 		if err != nil {
 			fmt.Println("absolument illogique")
@@ -225,10 +223,10 @@ func WriteArbo(r Node, path string) int {
 }
 func supp0(a string) string{
 	var j int
-	for i:=0;i<len(a);i++{
+	for i:=len(a)-1;i>-1;i--{
 		if(byte(a[i])==0){
 			j=i
-			break
+			
 		}
 	}
 	a = a[:j]
