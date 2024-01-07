@@ -276,12 +276,11 @@ func main() { // CLI Merge from REST and P2P (UDP)
 				} else {
 					byteslice, _ := hex.DecodeString(secondWord)
 					logProgress("on vas demander un download")
-					tmp2, _ := os.Create("./test")
 					tmp, tmpe := downloadNode(byteslice, currentP2PConn)
 					if tmpe != 0 {
 						fmt.Printf("Erreur lors du download,  %d \n", tmpe)
 					} else {
-						WriteFile(tmp, 0, *tmp2)
+						WriteArbo(tmp,"./testdump")
 					}
 				}
 			case "exit":
