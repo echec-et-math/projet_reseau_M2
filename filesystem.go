@@ -14,7 +14,6 @@ import (
 */
 
 func filename(filepath string) string {
-
 	i := strings.LastIndex(filepath, "/")
 	if i == -1 {
 		return filepath
@@ -22,10 +21,9 @@ func filename(filepath string) string {
 		return filepath[i:]
 	}
 }
+
 func createFile(filepath string) Node {
-
 	f, err := os.Open(filepath)
-
 	if err != nil || force_err {
 		fmt.Println(err)
 	}
@@ -49,7 +47,6 @@ func createFile(filepath string) Node {
 			i = 0
 			j = j + 1
 		}
-
 		c[i] = createChunk(buf, n)
 		i = i + 1
 	}
@@ -62,7 +59,6 @@ func createFile(filepath string) Node {
 			c[0].name = filename(filepath)
 			return c[0]
 		}
-
 	}
 	bf[j-1] = createBigFile(c, i)
 	var bbf []Node
@@ -81,14 +77,14 @@ func createFile(filepath string) Node {
 		bf[0].name = filename(filepath)
 		return bf[0]
 	}
-
 }
+
 func createChunk(content []byte, l int) Node {
 	h := sha256.New()
 	tmpc := []byte{}
-	t:= make([]byte,1)
-	t[0]=0
-	tmpc=append(t,content...)
+	t := make([]byte, 1)
+	t[0] = 0
+	tmpc = append(t, content...)
 	h.Write(tmpc)
 	return Node{
 		Directory: false,
@@ -98,12 +94,13 @@ func createChunk(content []byte, l int) Node {
 		Data:      content[0:l],
 	}
 }
+
 func createBigFile(ch []Node, nb int) Node {
 	s := []byte{}
 	h := sha256.New()
-	t:= make([]byte,1)
-	t[0]=1
-	s=append(s,t[0])
+	t := make([]byte, 1)
+	t[0] = 1
+	s = append(s, t[0])
 	n := Node{
 		Directory: false,
 		Big:       true,
@@ -119,6 +116,7 @@ func createBigFile(ch []Node, nb int) Node {
 	n.Hash = h.Sum(nil)
 	return n
 }
+
 func copyChunk(n *Node) *Node {
 	return &Node{
 		Directory: n.Directory,
@@ -134,27 +132,28 @@ func copyChunk(n *Node) *Node {
 /**
 ne sert qu'a ajouter des node a un directory, si ce n'est pas un directory ne fait rien
 */
-func AddChild(p Node, c Node) Node{
+func AddChild(p Node, c Node) Node {
 	if p.Directory && p.nbchild < 16 {
 		c.Parent = &p
 		p.Childs[p.nbchild] = c
-		p.nbchild=p.nbchild+1
-		fmt.Println(p.nbchild)
+		p.nbchild = p.nbchild + 1
+		if debugmode {
+			fmt.Println(p.nbchild)
+		}
 		h := sha256.New()
 		s := []byte{}
-		t:= make([]byte,1)
-		t[0]=2
-		s=append(s,t...)
-	
+		t := make([]byte, 1)
+		t[0] = 2
+		s = append(s, t...)
+
 		for i := 0; i < p.nbchild; i++ {
 			s = append(s, []byte(p.Childs[i].name)...)
 			s = append(s, p.Childs[i].Hash...)
-			
 
 		}
 		h.Write(s)
 		p.Hash = h.Sum(nil)
-		
+
 	}
 	return p
 }
@@ -175,12 +174,16 @@ func PrintTree(r Node, pre string) {
 		}
 	}
 	if r.Big {
-		fmt.Println(pre + r.name)
+		if debugmode {
+			fmt.Println(pre + r.name)
+		}
 		for i := 0; i < r.nbchild; i++ {
 			PrintTree(r.Childs[i], pre+"  ")
 		}
 	} else {
-		fmt.Println(pre + "chunk")
+		if debugmode {
+			fmt.Println(pre + "chunk")
+		}
 	}
 }
 func WriteFile(current Node, index int, f os.File) int {

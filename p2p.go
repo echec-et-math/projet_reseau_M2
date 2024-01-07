@@ -103,7 +103,6 @@ func readMsgNoSignature(conn net.Conn) []byte {
 		}
 	}
 	displayError(res)
-	//fmt.Println(hex.EncodeToString(res))
 	switch msgtype {
 	case 0:
 		// NoOp
@@ -135,7 +134,6 @@ func readMsgNoSignature(conn net.Conn) []byte {
 			rep = buildRootReply(roothash, msgid)
 		}
 		signAndWrite(conn, requestToByteSlice(rep))
-		//fmt.Println(hex.EncodeToString(requestToByteSlice(rep)))
 		logProgress("Provided roothash")
 		return readMsgNoSignature(conn)
 	case 5:
@@ -231,7 +229,6 @@ func readMsgWithSignature(conn net.Conn) []byte {
 			rep = buildRootReply(roothash, msgid)
 		}
 		signAndWrite(conn, requestToByteSlice(rep))
-		//fmt.Println(hex.EncodeToString(requestToByteSlice(rep)))
 		logProgress("Provided roothash")
 		return readMsgWithSignature(conn)
 	case 5:
@@ -399,9 +396,11 @@ func downloadNode(Hash []byte, conn net.Conn) (Node, int) {
 	if debugmode {
 		fmt.Printf("Download Node : found datatype of %d\n", datatype)
 	}
-	if !(compareHash(Hash, answer[7:39])) {
+	if !(compareHash(Hash, answer[7:39])) && debugmode {
+		fmt.Println("Mismatching hashes :")
 		fmt.Println(answer[7:39])
 		fmt.Println(Hash)
+		communicateError(conn, "Not the data I asked for", 128, 89) // 0 because we're gonna send it as a message anyway, 89 because that's our constant ID for GetDatums
 		return createDirectory(""), 6
 	}
 	if datatype == 0 {
@@ -409,13 +408,9 @@ func downloadNode(Hash []byte, conn net.Conn) (Node, int) {
 		//chunk
 		logProgress("un chunk de load")
 		c := createChunk(answer[40:], int(length-32))
-		
-		//fmt.Println("les hash:")
-		//fmt.Println(Hash)
 		if compareHash(Hash, c.Hash) {
-			debugmode=false
-
-			return c, 0 
+			debugmode = false
+			return c, 0
 		} else {
 			return createDirectory(""), 1
 		}
@@ -424,8 +419,9 @@ func downloadNode(Hash []byte, conn net.Conn) (Node, int) {
 		//big
 		debugmode = false
 		var bf []Node
-		fmt.Println((int(length) - 32) / 32)
-
+		if debugmode {
+			fmt.Println((int(length) - 32) / 32)
+		}
 		for i := 0; i < ((int(length) - 32) / 32); i++ {
 
 			tmpc, tmpe := downloadNode(answer[(40+(i*32)):(40+((i+1)*32))], conn)
@@ -441,7 +437,7 @@ func downloadNode(Hash []byte, conn net.Conn) (Node, int) {
 
 		c := createBigFile(bf, len(bf))
 		if compareHash(c.Hash, Hash) {
-			debugmode=true
+			debugmode = true
 			return c, 0
 		} else {
 			return createDirectory(""), 5
@@ -457,7 +453,7 @@ func downloadNode(Hash []byte, conn net.Conn) (Node, int) {
 		name := make([]byte, 32)
 		h := make([]byte, 32)
 
-		for i := 0; i <((int(length)-32)/64); i++ {
+		for i := 0; i < ((int(length) - 32) / 64); i++ {
 			name = answer[40+(i*64) : 72+(i*64)]
 			h = answer[72+(i*64) : 104+(i*64)]
 			if int(h[0]) == 0 {
@@ -467,8 +463,8 @@ func downloadNode(Hash []byte, conn net.Conn) (Node, int) {
 			if tmpe != 0 {
 				return createDirectory(""), tmpe
 			}
-			tmpc.name=string(name)
-			n=AddChild(n, tmpc)
+			tmpc.name = string(name)
+			n = AddChild(n, tmpc)
 		}
 
 		if compareHash(n.Hash, Hash) {

@@ -184,7 +184,7 @@ func main() { // CLI Merge from REST and P2P (UDP)
 				privkey = privKeyGen()
 				pubkey = pubkeyToByteSlice(computePubKey(privkey))
 				hasPubKey = true
-				fmt.Println("Public key : " + string(hex.EncodeToString(pubkey)))
+				logProgress("Public key : " + string(hex.EncodeToString(pubkey)))
 				break
 			case "getKey":
 				getPeerKeyFlag = secondWord
@@ -275,7 +275,7 @@ func main() { // CLI Merge from REST and P2P (UDP)
 					fmt.Println("We're not currently connected to a peer !")
 				} else {
 					byteslice, _ := hex.DecodeString(secondWord)
-					logProgress("on vas demander un download")
+					logProgress("On va demander un download")
 					tmp2, _ := os.Create("./test")
 					tmp, tmpe := downloadNode(byteslice, currentP2PConn)
 					if tmpe != 0 {

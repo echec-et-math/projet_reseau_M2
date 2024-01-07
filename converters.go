@@ -11,7 +11,9 @@ import (
 
 func helloToByteSlice(exchange *HelloExchange) []byte {
 	k := binary.BigEndian.Uint16(exchange.Length) // TODO err handling
-	//fmt.Printf("Found length of Hello byte slice = %d\n", k)
+	if debugmode {
+		fmt.Printf("Found length of Hello byte slice = %d\n", k)
+	}
 	res := make([]byte, 11+len(exchange.Name)+len(exchange.Signature))
 	for i := 0; i < 4; i++ {
 		res[i] = exchange.Id[i]
@@ -43,7 +45,9 @@ func helloToByteSlice(exchange *HelloExchange) []byte {
 
 func datumToByteSlice(datum *Datum) []byte {
 	l := binary.BigEndian.Uint16(datum.Length) // TODO err handling
-	//fmt.Printf("Found length of Datum byte slice = %d\n", l)
+	if debugmode {
+		fmt.Printf("Found length of Datum byte slice = %d\n", l)
+	}
 	res := make([]byte, 7+l+uint16(len(datum.Signature)))
 	for i := 0; i < 4; i++ {
 		res[i] = datum.Id[i]
@@ -75,7 +79,9 @@ func datumToByteSlice(datum *Datum) []byte {
 
 func requestToByteSlice(req *P2PMsg) []byte {
 	l := binary.BigEndian.Uint16(req.Length) // TODO err handling
-	//fmt.Printf("Found length of byte slice = %d\n", l)
+	if debugmode {
+		fmt.Printf("Found length of byte slice = %d\n", l)
+	}
 	res := make([]byte, uint16(7)+l+uint16(len(req.Signature)))
 	for i := 0; i < 4; i++ {
 		res[i] = req.Id[i]
