@@ -597,6 +597,7 @@ func salute(name string) {
 			return
 		}
 	}
+	issuedTraversal = true
 	// 5 unsuccessful tries
 	logProgress("Failed to contact the peer after 5 tries. Issuing a NAT traversal request.")
 	remote_addr := currentP2PConn.RemoteAddr().String()
