@@ -404,12 +404,10 @@ func downloadNode(Hash []byte, conn net.Conn) (Node, int) {
 		return createDirectory(""), 6
 	}
 	if datatype == 0 {
-		debugmode = false
 		//chunk
 		logProgress("un chunk de load")
 		c := createChunk(answer[40:], int(length-32))
 		if compareHash(Hash, c.Hash) {
-			debugmode = false
 			return c, 0
 		} else {
 			return createDirectory(""), 1
@@ -417,7 +415,6 @@ func downloadNode(Hash []byte, conn net.Conn) (Node, int) {
 	}
 	if datatype == 1 {
 		//big
-		debugmode = false
 		var bf []Node
 		if debugmode {
 			fmt.Println((int(length) - 32) / 32)
@@ -437,7 +434,6 @@ func downloadNode(Hash []byte, conn net.Conn) (Node, int) {
 
 		c := createBigFile(bf, len(bf))
 		if compareHash(c.Hash, Hash) {
-			debugmode = true
 			return c, 0
 		} else {
 			return createDirectory(""), 5
