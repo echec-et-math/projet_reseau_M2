@@ -186,31 +186,32 @@ func PrintTree(r Node, pre string) {
 		}
 	}
 }
-func WriteFile(current Node, index int, f *os.File) int {
+func WriteFile(current Node) []byte {
 	if current.Big {
-		tmp := index
+		s := []byte{}
 		for i := 0; i < current.nbchild; i++ {
-			tmp = tmp + WriteFile(current.Childs[i], tmp, f)
+			s=append(s,current.Childs[i].Data...)
 		}
-		return index + (1024 * current.nbchild)
+		return s
 	} else {
-		f.Write(current.Data)
-		return 0
+		return current.Data
 	}
 	// return -1 -> unreachable code
 }
 func WriteArbo(r Node, path string) int {
-	fmt.Println(path + r.name + "/")
 	if r.Directory {
-		os.MkdirAll(path+r.name, os.ModePerm)
+		err:=os.MkdirAll(path+r.name, os.ModePerm)
+		if err != nil {
+			fmt.Println("on essaie de creer un dossier")
+			panic(err)
+		}
 		for i := 0; i < r.nbchild; i++ {
 			WriteArbo(r.Childs[i], path+r.name+"/")
 		}
 		return 0
 	} else {
-		f, _ := os.Create(path + r.name)
-		defer f.Close()
-		WriteFile(r,0,f)
+		s:=WriteFile(r)
+		os.WriteFile(path+r.name, s, 0600)
 		return 0
 	}
 }
