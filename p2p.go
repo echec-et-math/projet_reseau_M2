@@ -88,7 +88,7 @@ func readMsgNoSignature(conn net.Conn) []byte {
 	msgtype := res[4]
 	length := binary.BigEndian.Uint16(res[5:7])
 	res = res[:7+length]
-	if err != nil {
+	if err != nil || force_err {
 		log.Fatal(err)
 	}
 	if debugmode {
@@ -169,7 +169,7 @@ func readMsgWithSignature(conn net.Conn) []byte {
 	length := binary.BigEndian.Uint16(res[5:7])
 	signature := res[7+length : 7+length+64]
 	res = res[:7+length+64]
-	if err != nil {
+	if err != nil || force_err {
 		log.Fatal(err)
 	}
 	if debugmode {
@@ -186,6 +186,7 @@ func readMsgWithSignature(conn net.Conn) []byte {
 	logProgress("Found signature : " + hex.EncodeToString(signature))
 	if !verify(res, signature, byteSliceToPubkey(peerpubkey)) {
 		logProgress("Invalid signature : skipping")
+		communicateError(conn, "Bad signature", msgtype)
 		return readMsgWithSignature(conn)
 	}
 	switch msgtype {
@@ -205,6 +206,10 @@ func readMsgWithSignature(conn net.Conn) []byte {
 	case 3:
 		// PublicKey
 		logProgress("Pubkey request received")
+		if !helloExchangeDone {
+			communicateError(conn, "Please say hello first", msgtype)
+			break
+		}
 		rep := buildPubkeyReplyNoPubkey(msgid)
 		if hasPubKey {
 			rep = buildPubkeyReplyWithPubkey(pubkey, msgid)
@@ -214,6 +219,10 @@ func readMsgWithSignature(conn net.Conn) []byte {
 	case 4:
 		// Root
 		logProgress("Root hash request received")
+		if !helloExchangeDone {
+			communicateError(conn, "Please say hello first", msgtype)
+			break
+		}
 		rep := buildRootReply(emptyStringHash, msgid)
 		if hasFiles {
 			rep = buildRootReply(roothash, msgid)
@@ -224,6 +233,9 @@ func readMsgWithSignature(conn net.Conn) []byte {
 		return readMsgWithSignature(conn)
 	case 5:
 		// Datum
+		if !helloExchangeDone {
+			communicateError(conn, "Please say hello first", msgtype)
+		}
 		// TODO
 		break
 	case 6:
@@ -236,13 +248,26 @@ func readMsgWithSignature(conn net.Conn) []byte {
 		break
 	case 130:
 		// PublicKeyReply
+		if !helloExchangeDone {
+			communicateError(conn, "Please say hello first", msgtype)
+			break
+		}
 		pubkeyExchangeDone = true
 		break
 	case 131:
 		// RootReply
+		if !helloExchangeDone {
+			communicateError(conn, "Please say hello first", msgtype)
+			break
+		}
 		roothashExchangeDone = true
 		break
 	default:
+		if !helloExchangeDone {
+			communicateError(conn, "Please say hello first. Also I don't know this message type.", msgtype)
+			break
+		}
+		communicateError(conn, "Unknown message type.", msgtype)
 		break
 	}
 	return res
@@ -254,6 +279,16 @@ func signAndWrite(conn net.Conn, content []byte) {
 	} else {
 		conn.Write(content)
 	}
+}
+
+func communicateError(conn net.Conn, msg string, msgtype byte) {
+	var errrep *P2PMsg
+	if msgtype <= 127 {
+		errrep = buildErrorReply("Bad signature", 0)
+	} else {
+		errrep = buildErrorMessage("Bad signature", 0)
+	}
+	signAndWrite(conn, requestToByteSlice(errrep))
 }
 
 func verifChunk(content []byte, Hash []byte) bool {
@@ -289,7 +324,7 @@ func findNode(Hash []byte, n Node) *Node {
 	} else {
 		for i := 0; i < n.nbchild; i++ {
 			tmp := findNode(Hash, n.Childs[i])
-			if tmp != nil {
+			if tmp != nil || force_err {
 				return tmp
 			}
 		}
@@ -367,7 +402,7 @@ func downloadNode(Hash []byte, conn net.Conn) (Node, int) {
 		return createDirectory(""), 6
 	}
 	if datatype == 0 {
-		debugmode=false
+		debugmode = false
 		//chunk
 		logProgress("un chunk de load")
 		c := createChunk(answer[40:], int(length-32))
@@ -381,16 +416,15 @@ func downloadNode(Hash []byte, conn net.Conn) (Node, int) {
 		} else {
 			return createDirectory(""), 1
 		}
-
 	}
 	if datatype == 1 {
 		//big
-		debugmode=false
+		debugmode = false
 		var bf []Node
-		fmt.Println((int(length)-32)/32)
+		fmt.Println((int(length) - 32) / 32)
 
-		for i := 0; i < ((int(length)-32)/32); i++ {
-			
+		for i := 0; i < ((int(length) - 32) / 32); i++ {
+
 			tmpc, tmpe := downloadNode(answer[(40+(i*32)):(40+((i+1)*32))], conn)
 			if tmpe != 0 {
 				return createDirectory(""), tmpe
@@ -414,12 +448,11 @@ func downloadNode(Hash []byte, conn net.Conn) (Node, int) {
 	if datatype == 2 {
 		//directory
 		n := createDirectory("")
-		if(length==33){
-			return n,0
+		if length == 33 {
+			return n, 0
 		}
 		name := make([]byte, 32)
 		h := make([]byte, 32)
-		
 
 		for i := 0; i <((int(length)-32)/64); i++ {
 			name = answer[40+(i*64) : 72+(i*64)]
@@ -458,7 +491,7 @@ func fetchPubKey(name string) ([]byte, bool) {
 	res := make([]byte, 64)
 	req := buildGetPeerPubkeyRequest(name)
 	resp, err := client.Do(req)
-	if err != nil {
+	if err != nil || force_err {
 		log.Fatal("Error fetching server for pubkey")
 		return res, false
 	}
@@ -471,7 +504,7 @@ func fetchPubKey(name string) ([]byte, bool) {
 		return res, false
 	}
 	text, err := io.ReadAll(resp.Body)
-	if err != nil {
+	if err != nil || force_err {
 		log.Fatal("Failed parsing the pubkey")
 		return res, false
 	}
@@ -514,6 +547,7 @@ func salute(name string) {
 			}
 			currentP2PConn.SetReadDeadline(time.Now().Add(time.Second * 5))
 			readMsg(currentP2PConn) // and again
+			go keepalive(currentP2PConn, &currentAbr)
 			return
 		}
 	}

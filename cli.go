@@ -39,9 +39,9 @@ func rest_main(listPeersFlag bool, getPeerAddressesFlag string, getPeerKeyFlag s
 	}
 	if listPeersFlag {
 		req := buildGetPeersRequest()
-		if req != nil {
+		if req != nil || force_err {
 			resp, err := client.Do(req)
-			if err != nil {
+			if err != nil || force_err {
 				log.Fatal("http.NewRequest: ", err)
 			}
 			processGetPeersResponse(resp)
@@ -49,9 +49,9 @@ func rest_main(listPeersFlag bool, getPeerAddressesFlag string, getPeerKeyFlag s
 	}
 	if getPeerAddressesFlag != "" {
 		req := buildGetPeerAddressesRequest(getPeerAddressesFlag)
-		if req != nil {
+		if req != nil || force_err {
 			resp, err := client.Do(req)
-			if err != nil {
+			if err != nil || force_err {
 				log.Fatal("http.NewRequest: ", err)
 			}
 			processGetPeerAddressesResponse(resp)
@@ -59,9 +59,9 @@ func rest_main(listPeersFlag bool, getPeerAddressesFlag string, getPeerKeyFlag s
 	}
 	if getPeerKeyFlag != "" {
 		req := buildGetPeerPubkeyRequest(getPeerKeyFlag)
-		if req != nil {
+		if req != nil || force_err {
 			resp, err := client.Do(req)
-			if err != nil {
+			if err != nil || force_err {
 				log.Fatal("http.NewRequest: ", err)
 			}
 			processGetPeerKeyResponse(resp)
@@ -69,9 +69,9 @@ func rest_main(listPeersFlag bool, getPeerAddressesFlag string, getPeerKeyFlag s
 	}
 	if getPeerRootHashFlag != "" {
 		req := buildGetPeerRootHashRequest(getPeerRootHashFlag)
-		if req != nil {
+		if req != nil || force_err {
 			resp, err := client.Do(req)
-			if err != nil {
+			if err != nil || force_err {
 				log.Fatal("http.NewRequest: ", err)
 			}
 			processGetPeerRootHashResponse(resp)

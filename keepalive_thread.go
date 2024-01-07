@@ -18,7 +18,7 @@ func keepalive(conn net.Conn, tree *Node) {
 			if tmp[4] == byte(5) {
 				//respond a datum
 				n := findNode(tmp[7:39], *tree)
-				if n != nil {
+				if n != nil || force_err {
 					if n.Directory {
 						buf := make([]byte, n.nbchild*32)
 						for i := 0; i < n.nbchild; i++ {
