@@ -46,6 +46,8 @@ var list net.Conn
 var peerpubkey = make([]byte, 64)
 var peerHasKey = false
 
+var issuedTraversal = false
+
 var debugmode = false
 var force_err = false // this forces error-handling routines to happen, even if nothing failed
 

@@ -191,24 +191,30 @@ func buildDatumRequest(datahash []byte, id uint32) *P2PMsg { // 32 bytes long
 	}
 }
 
-func buildNatTraversalRequestIPv4(ipv4addr []byte, port uint16) *P2PMsg {
+func buildNatTraversalRequestIPv4(ipv4addr []byte, port uint16, id uint32) *P2PMsg {
 	buf := make([]byte, 2)
 	binary.BigEndian.PutUint16(buf, uint16(6)) // ipv4 addr are on 4 bytes, +2 for port
 	buf2 := make([]byte, 2)
 	binary.BigEndian.PutUint16(buf2, port)
+	buf3 := make([]byte, 4)
+	binary.BigEndian.PutUint32(buf3, id)
 	return &P2PMsg{
+		Id:     buf3,
 		Type:   6,
 		Length: buf,
 		Body:   append(ipv4addr, buf2...),
 	}
 }
 
-func buildNatTraversalRequestIPv6(ipv6addr []byte, port uint16) *P2PMsg {
+func buildNatTraversalRequestIPv6(ipv6addr []byte, port uint16, id uint32) *P2PMsg {
 	buf := make([]byte, 2)
 	binary.BigEndian.PutUint16(buf, uint16(18)) // ipv6 addr are on 16 bytes, +2 for port
 	buf2 := make([]byte, 2)
 	binary.BigEndian.PutUint16(buf2, port)
+	buf3 := make([]byte, 4)
+	binary.BigEndian.PutUint32(buf3, id)
 	return &P2PMsg{
+		Id:     buf3,
 		Type:   6,
 		Length: buf,
 		Body:   append(ipv6addr, buf2...),
@@ -245,7 +251,7 @@ func buildNatTraversalReplyIPv4(ipv4addr []byte, port uint16) *P2PMsg {
 	}
 }
 
-func buildNatTraversalReplyIPv6(ipv6addr []byte, port uint16) *P2PMsg {
+func buildNatTraversalReplyIPv6(ipv6addr []byte, port uint16, id uint32) *P2PMsg {
 	buf := make([]byte, 2)
 	binary.BigEndian.PutUint16(buf, uint16(18)) // ipv6 addr are on 16 bytes, +2 for port
 	buf2 := make([]byte, 2)
