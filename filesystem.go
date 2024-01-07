@@ -199,19 +199,18 @@ func WriteFile(current Node, index int, f os.File) int {
 	}
 	// return -1 -> unreachable code
 }
-func WriteArbo(r Node, path string) int{
-	fmt.Println(path+r.name+"/")
-	if(r.Directory){
-		os.MkdirAll(path+r.name,os.ModePerm)
-		for i:=0;i<r.nbchild;i++{
-			WriteArbo(r.Childs[i],path+r.name+"/")
+func WriteArbo(r Node, path string) int {
+	fmt.Println(path + r.name + "/")
+	if r.Directory {
+		os.MkdirAll(path+r.name, os.ModePerm)
+		for i := 0; i < r.nbchild; i++ {
+			WriteArbo(r.Childs[i], path+r.name+"/")
 		}
 		return 0
-	}else{
-		f,_:=os.Create(path+r.name)
+	} else {
+		f, _ := os.Create(path + r.name)
 		defer f.Close()
 		//WriteFile(r,0,*f)
 		return 0
 	}
-	return -1
 }
