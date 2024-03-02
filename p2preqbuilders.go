@@ -42,9 +42,12 @@ func buildHelloRequest(name string, id uint32, extensions uint32) *HelloExchange
 }
 
 func buildHelloReply(id uint32) *HelloExchange {
+	bufid := make([]byte, 4)
+	binary.BigEndian.PutUint32(bufid, id)
 	buf := make([]byte, 2)
 	binary.BigEndian.PutUint16(buf, uint16(len(name)+4)) // +4 for extensions
 	return &HelloExchange{
+		Id:     bufid,
 		Type:   129,
 		Length: buf,
 		Name:   []byte(name),
@@ -252,11 +255,14 @@ func buildNatTraversalReplyIPv4(ipv4addr []byte, port uint16) *P2PMsg {
 }
 
 func buildNatTraversalReplyIPv6(ipv6addr []byte, port uint16, id uint32) *P2PMsg {
+	bufid := make([]byte, 4)
+	binary.BigEndian.PutUint32(bufid, id)
 	buf := make([]byte, 2)
 	binary.BigEndian.PutUint16(buf, uint16(18)) // ipv6 addr are on 16 bytes, +2 for port
 	buf2 := make([]byte, 2)
 	binary.BigEndian.PutUint16(buf2, port)
 	return &P2PMsg{
+		Id:     bufid,
 		Type:   7,
 		Length: buf,
 		Body:   append(ipv6addr, buf2...),
