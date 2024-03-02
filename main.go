@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"crypto/ecdsa"
+	"crypto/sha256"
 	"crypto/tls"
 	"encoding/hex"
 	"fmt"
@@ -15,7 +16,7 @@ import (
 )
 
 /*
-	GLOBAL VARS
+GLOBAL VARS
 */
 
 var helloExchangeDone = false
@@ -23,14 +24,13 @@ var pubkeyExchangeDone = false
 var roothashExchangeDone = false
 
 var hasPubKey = false
-var hasFiles = true
+var hasFiles = false
 
 var pubkey = make([]byte, 64)
 var privkey *ecdsa.PrivateKey
 var roothash = make([]byte, 32)
 
-var emptyStringHash = make([]byte, 32) // TODO
-
+var emptyStringHash = sha256.New().Sum(nil)
 var serv_addr = "jch.irif.fr:8443"
 var serv_addr_noport = "jch.irif.fr"
 var serv_url = "https://jch.irif.fr:8443"
@@ -45,6 +45,9 @@ var list net.Conn
 
 var peerpubkey = make([]byte, 64)
 var peerHasKey = false
+
+var peerroothash = make([]byte, 64)
+var peerHasFiles = false
 
 var issuedTraversal = false
 
@@ -68,7 +71,7 @@ func logProgress(msg string) {
 }
 
 /*
-	REST register module
+REST register module
 */
 
 func registerPeer(name string, pubkey []byte, roothash []byte) {
@@ -115,11 +118,7 @@ func main() { // CLI Merge from REST and P2P (UDP)
 	conn.SetReadDeadline(time.Now().Add(time.Second * 5)) // accept a delay for pubkey or roothash
 	readMsg(conn)                                         // TODO signature mode. We read all the replys and process them, until an empty message tells us we're done.
 	//go keepaliveNoSignature(conn) */
-	RESTMode := true
 	listPeersFlag := false
-	getPeerAddressesFlag := ""
-	getPeerKeyFlag := ""
-	getPeerRootHashFlag := ""
 	helpFlag := false
 	exitFlag := false
 	reader := bufio.NewReader(os.Stdin)
@@ -151,156 +150,110 @@ func main() { // CLI Merge from REST and P2P (UDP)
 			}
 		}
 		fmt.Println()
-		if RESTMode {
-			// client REST mode
-			listPeersFlag = false
-			getPeerAddressesFlag = ""
-			getPeerKeyFlag = ""
-			getPeerRootHashFlag = ""
-			exitFlag = false
-			helpFlag = false
-			// read user input
-			switch commandWord {
-			case "debugon":
-				debugmode = true
+		listPeersFlag = false
+		exitFlag = false
+		helpFlag = false
+		// read user input
+		switch commandWord {
+		case "debugon":
+			debugmode = true
+			break
+		case "debugoff":
+			debugmode = false
+			break
+		case "exportKey":
+			exportKey()
+			break
+		case "forceerron":
+			force_err = true
+			break
+		case "forceerroff":
+			force_err = false
+			break
+		case "list":
+			listPeersFlag = true
+			break
+		case "generateKey":
+			privkey = privKeyGen()
+			pubkey = pubkeyToByteSlice(computePubKey(privkey))
+			hasPubKey = true
+			logProgress("Public key : " + string(hex.EncodeToString(pubkey)))
+			break
+		case "importKey":
+			importKey()
+			fmt.Println("Imported key : " + string(hex.EncodeToString(pubkey)))
+			break
+		case "register":
+			helloExchangeDone = false
+			pubkeyExchangeDone = false
+			roothashExchangeDone = false
+			servconn, _ = net.Dial("udp", serv_addr)
+			//peerpubkey, peerHasKey = fetchPubKey(serv_addr_noport)
+			//Uncomment above when the REST Server will sign its HelloReply properly
+			registerPeer(name, pubkey, roothash)
+			go keepalive(servconn, &currentAbr)
+			break
+		case "setName":
+			name = secondWord
+			break
+		case "exit":
+			exitFlag = true
+			break
+		case "connect":
+			if connectedToPeer {
+				fmt.Println("Already connected to someone : please disconnect beforehand.")
 				break
-			case "debugoff":
-				debugmode = false
+			}
+			helloExchangeDone = false
+			pubkeyExchangeDone = false
+			roothashExchangeDone = false
+			peer_addr, peer_exists := fetchAddress(secondWord)
+			if !peer_exists {
+				fmt.Println("Unable to find an address for this peer.")
 				break
-			case "exportKey":
-				exportKey()
-				break
-			case "forceerron":
-				force_err = true
-				break
-			case "forceerroff":
-				force_err = false
-				break
-			case "list":
-				listPeersFlag = true
-				break
-			case "getAddresses":
-				getPeerAddressesFlag = secondWord
-				break
-			case "generateKey":
-				privkey = privKeyGen()
-				pubkey = pubkeyToByteSlice(computePubKey(privkey))
-				hasPubKey = true
-				logProgress("Public key : " + string(hex.EncodeToString(pubkey)))
-				break
-			case "getKey":
-				getPeerKeyFlag = secondWord
-				break
-			case "getRootHash":
-				getPeerRootHashFlag = secondWord
-				break
-			case "importKey":
-				importKey()
-				fmt.Println("Imported key : " + string(hex.EncodeToString(pubkey)))
-				break
-			case "register":
+			}
+			currentP2PConn, err = net.Dial("udp", string(peer_addr))
+			if err != nil || force_err {
+				fmt.Println("Error connecting to the peer.")
+				if debugmode {
+					log.Fatal(err)
+				}
+			} else {
+				peerpubkey, peerHasKey = fetchPubKey(secondWord)
+				peerroothash, peerHasFiles = fetchRootHash(secondWord)
+				// Uncomment above when we figure out signatures
+				salute(name)
+				connectedToPeer = true
+				fmt.Println("Successfully connected to peer.")
+			}
+			// TODO maintain connection
+			break
+		case "disconnect":
+			if connectedToPeer {
+				currentP2PConn.Close()
 				helloExchangeDone = false
 				pubkeyExchangeDone = false
 				roothashExchangeDone = false
-				servconn, _ = net.Dial("udp", serv_addr)
-				//peerpubkey, peerHasKey = fetchPubKey(serv_addr_noport)
-				//Uncomment above when the REST Server will sign its HelloReply properly
-				registerPeer(name, pubkey, roothash)
-				go keepalive(servconn, &currentAbr)
-				break
-			case "setName":
-				name = secondWord
-				break
-			case "switchmode":
-				RESTMode = false
-				break
-			case "exit":
-				exitFlag = true
-				break
-			default:
-				helpFlag = true
-				break
+				connectedToPeer = false
 			}
-			// TODO : allow a list of peers instead of a single one here
-			rest_main(listPeersFlag, getPeerAddressesFlag, getPeerKeyFlag, getPeerRootHashFlag, helpFlag, exitFlag)
-		} else {
-			//latest_req_time := 0 // current time here, used for keepalives
-			// client P2P mode
-			// read user input
-			switch commandWord {
-			case "connect":
-				if connectedToPeer {
-					fmt.Println("Already connected to someone : please disconnect beforehand.")
-					break
-				}
-				helloExchangeDone = false
-				pubkeyExchangeDone = false
-				roothashExchangeDone = false
-				currentP2PConn, err = net.Dial("udp", secondWord)
-				if err != nil || force_err {
-					fmt.Println("Error connecting to the peer.")
-					if debugmode {
-						log.Fatal(err)
-					}
+			break
+		case "download":
+			if !connectedToPeer {
+				fmt.Println("We're not currently connected to a peer !")
+			} else {
+				logProgress("on vas demander un download")
+				tmp, tmpe := downloadNode(peerroothash, currentP2PConn)
+				if tmpe != 0 {
+					fmt.Printf("Erreur lors du download,  %d \n", tmpe)
 				} else {
-					peerpubkey, peerHasKey = fetchPubKey(secondWord)
-					// Uncomment above when we figure out signatures
-					salute(name)
-					connectedToPeer = true
-					fmt.Println("Successfully connected to peer.")
+					WriteArbo(tmp, "./testdump")
 				}
-				// TODO maintain connection
-				break
-			case "debugon":
-				debugmode = true
-				break
-			case "debugoff":
-				debugmode = false
-				break
-			case "forceerron":
-				force_err = true
-				break
-			case "forceerroff":
-				force_err = false
-				break
-			case "disconnect":
-				if connectedToPeer {
-					currentP2PConn.Close()
-					helloExchangeDone = false
-					pubkeyExchangeDone = false
-					roothashExchangeDone = false
-					connectedToPeer = false
-				}
-				RESTMode = true
-				break
-			case "download":
-				if !connectedToPeer {
-					fmt.Println("We're not currently connected to a peer !")
-				} else {
-					byteslice, _ := hex.DecodeString(secondWord)
-					logProgress("on vas demander un download")
-					tmp, tmpe := downloadNode(byteslice, currentP2PConn)
-					if tmpe != 0 {
-						fmt.Printf("Erreur lors du download,  %d \n", tmpe)
-					} else {
-						WriteArbo(tmp, "./testdump")
-					}
-				}
-			case "exit":
-				exitFlag = true
-				break
-			case "setName":
-				name = secondWord
-				break
-			case "switchmode":
-				RESTMode = true
-				break
-			default:
-				helpFlag = true
-				break
 			}
-			udp_main(helpFlag, exitFlag)
+		default:
+			helpFlag = true
+			break
 		}
+		cli_main(listPeersFlag, helpFlag, exitFlag)
 		if debugmode {
 			fmt.Println("Operation {" + commandWord + " " + secondWord + " " + thirdWord + " " + fourthWord + " " + fifthWord + "} done.")
 		}
