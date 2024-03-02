@@ -529,7 +529,7 @@ func downloadNode(Hash []byte, conn net.Conn) (Node, int) {
 */
 
 func fetchPubKey(name string) ([]byte, bool) {
-	res := make([]byte, 64)
+	res := make([]byte, 0)
 	req := buildGetPeerPubkeyRequest(name)
 	resp, err := client.Do(req)
 	if err != nil || force_err {
@@ -553,6 +553,62 @@ func fetchPubKey(name string) ([]byte, bool) {
 	res = append(res, text...)
 	logProgress("Parsed pubkey for this peer, found : " + hex.EncodeToString(text))
 	return res, true
+}
+
+func fetchRootHash(name string) ([]byte, bool) {
+	res := make([]byte, 0)
+	req := buildGetPeerRootHashRequest(name)
+	resp, err := client.Do(req)
+	if err != nil || force_err {
+		log.Fatal("Error fetching server for pubkey")
+		return res, false
+	}
+	if resp.StatusCode == http.StatusNotFound { // 404
+		logProgress("Found no root hash for this peer.")
+		return res, false
+	}
+	if resp.StatusCode == http.StatusNoContent { // 204
+		logProgress("Found no root hash for this peer.")
+		return res, false
+	}
+	text, err := io.ReadAll(resp.Body)
+	if err != nil || force_err {
+		log.Fatal("Failed parsing the root hash")
+		return res, false
+	}
+	resp.Body.Close()
+	res = append(res, text...)
+	peerroothash = []byte(hex.EncodeToString(text))
+	logProgress("Parsed root hash for this peer, found : " + string(peerroothash))
+	return res, true
+}
+
+func fetchAddress(name string) ([]byte, bool) {
+	res := make([]byte, 0)
+	req := buildGetPeerAddressesRequest(name)
+	resp, err := client.Do(req)
+	if err != nil || force_err {
+		log.Fatal("Unable to connect to the REST server.")
+		return res, false
+	}
+	if resp.StatusCode == http.StatusNotFound { // 404
+		logProgress("Found no address for this peer.")
+		return res, false
+	}
+	if resp.StatusCode == http.StatusNoContent { // 204
+		logProgress("Found no address for this peer.")
+		return res, false
+	}
+	text, err := io.ReadAll(resp.Body)
+	if err != nil || force_err {
+		log.Fatal("Failed parsing the pubkey")
+		return res, false
+	}
+	resp.Body.Close()
+	res = []byte(strings.Split(string(text), "\n")[0])
+	logProgress("Parsed address for this peer, found : " + hex.EncodeToString(text))
+	return res, true
+
 }
 
 func splitaddr(address string) ([]byte, uint16) {
