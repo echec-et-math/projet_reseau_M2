@@ -201,8 +201,8 @@ func readMsgWithSignature(conn net.Conn) []byte {
 	msgid := binary.BigEndian.Uint32(res[0:4])
 	msgtype := res[4]
 	length := binary.BigEndian.Uint16(res[5:7])
+	res = res[:7+length]
 	signature := res[7+length : 7+length+64]
-	res = res[:7+length+64]
 	if err != nil || force_err {
 		log.Fatal(err)
 	}
