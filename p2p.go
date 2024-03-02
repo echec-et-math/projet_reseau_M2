@@ -331,9 +331,9 @@ func signAndWrite(conn net.Conn, content []byte) {
 func communicateError(conn net.Conn, msg string, msgtype byte, msgid uint32) {
 	var errrep *P2PMsg
 	if msgtype <= 127 {
-		errrep = buildErrorReply("Bad signature", msgid)
+		errrep = buildErrorReply(msg, msgid)
 	} else {
-		errrep = buildErrorMessage("Bad signature", 0)
+		errrep = buildErrorMessage(msg, 0)
 	}
 	signAndWrite(conn, requestToByteSlice(errrep))
 }
