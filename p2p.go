@@ -380,8 +380,7 @@ func findNode(Hash []byte, n Node) *Node {
 }
 
 func sendDatum(n Node, con net.Conn) {
-	var data []byte
-
+	data := make([]byte, 1) // need one for type, then append calls will automatically expand the array
 	if n.Directory {
 		data[0] = byte(1)
 		for i := 1; i < n.nbchild; i++ {
