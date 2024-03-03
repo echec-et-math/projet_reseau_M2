@@ -85,20 +85,20 @@ func createNode(filepath string) Node {
 	}
 	bf[j-1] = createBigFile(c, i)
 	var bbf []Node
-	for len(bf) > 32 {
-		for a := 0; a < len(bf); a = a + 32 {
-			bbf = append(bbf, createBigFile(c[a:32], 32))
+	for len(bigfilebuffer) > 32 {
+		for a := 0; a < len(bigfilebuffer); a = a + 32 {
+			bbf = append(bbf, createBigFileNode(chunkbuffer[a:32], 32))
 		}
-		bf = nil
-		copy(bf, bbf) //copie dans bf bbf
+		bigfilebuffer = nil
+		copy(bigfilebuffer, bbf) //copie dans bf bbf
 	}
-	if len(bf) >= 2 {
-		ret := createBigFile(bf, len(bf))
+	if len(bigfilebuffer) >= 2 {
+		ret := createBigFileNode(bigfilebuffer, len(bigfilebuffer))
 		ret.name = filename(filepath)
 		return ret
 	} else {
-		bf[0].name = filename(filepath)
-		return bf[0]
+		bigfilebuffer[0].name = filename(filepath)
+		return bigfilebuffer[0]
 	}
 }
 
