@@ -135,7 +135,7 @@ func readMsgNoSignature(conn net.Conn) []byte {
 		break
 	case 6:
 		// NAT Traversal Request
-		communicateError(conn, "I'm not the REST server", msgtype, msgid)
+		communicateError(conn, "I am not the REST server", msgtype, msgid)
 		break
 	case 7:
 		// NAT Traversal
