@@ -101,7 +101,11 @@ func requestToByteSlice(req *P2PMsg) []byte {
 		fmt.Println("Id: ", res[0:4])
 		fmt.Println("type: ", res[4])
 		fmt.Println("length: ", res[5:7])
-		fmt.Println("body:", res[7:l+7])
+		if res[4] == 1 || res[4] == 127 { // Errors
+			fmt.Println("body", string(res[7:l+7]))
+		} else {
+			fmt.Println("body:", res[7:l+7])
+		}
 		fmt.Println("signature : ", res[l+7:])
 	}
 	return res
