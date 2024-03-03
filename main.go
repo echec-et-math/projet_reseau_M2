@@ -35,7 +35,7 @@ var serv_addr = "jch.irif.fr:8443"
 var serv_addr_noport = "jch.irif.fr"
 var serv_url = "https://jch.irif.fr:8443"
 
-var currentAbr = createFile("projet.pdf")
+var currentAbr = createNode("data_test.txt")
 
 var currentP2PConn net.Conn
 var connectedToPeer = false
