@@ -25,50 +25,62 @@ type Node struct {
 */
 
 func filename(filepath string) string {
+	// macro removing the trailing slash in filepaths
 	i := strings.LastIndex(filepath, "/")
 	if i == -1 {
+		// if no slash at all, then the file name is the full string
 		return filepath
 	} else {
+		// otherwise, the file name is the last word of the slash-delimited string
 		return filepath[i:]
 	}
 }
 
-func createFile(filepath string) Node {
+/*
+	Returns a Merkle tree Node for a given filepath. Assumes that this path points to a file and NOT a directory.
+*/
+func createNode(filepath string) Node {
+	// open a file on the disk
 	f, err := os.Open(filepath)
 	if err != nil || force_err {
 		fmt.Println(err)
 	}
 	defer f.Close()
-
-	reader := bufio.NewReader(f)
-	buf := make([]byte, 1024)
-	c := make([]Node, 32)
-	var i, j int = 0, 0
-	var bf []Node
+	reader := bufio.NewReader(f)    // a reader on our file
+	buf := make([]byte, 1024)       // this buffer will serve to read our file
+	chunkbuffer := make([]Node, 32) // an empty Node array (will store the children of our final Node)
+	var chunkchildren, bigfilechildren int = 0, 0
+	// i is a counter for the amount of reads done on the file. It tracks the current amount of chunks among the children
+	// As every read creates a child, it is important to track this amount, to convert a large amount of data chunks into a big file
+	// Similarly, j tracks the amount of big files among the children
+	var bigfilebuffer []Node // bf stores the big files we created
 	for {
-		n, err := reader.Read(buf)
+		n, err := reader.Read(buf) // reads the file
 		if err != nil || force_err {
 			if err != io.EOF {
 				fmt.Println(err)
+				return Node{}
 			}
-			break
+			break // when EOF reached, skip to the next part
 		}
-		if i == 32 {
-			bf = append(bf, createBigFile(c, 32))
-			i = 0
-			j = j + 1
+		if chunkchildren == 32 { // when we have too many chunks, convert them into a single big file
+			bigfilebuffer = append(bigfilebuffer, createBigFileNode(chunkbuffer, 32)) // passes c as an argument, c being our current children chunks
+			chunkchildren = 0                                                         // resets the chunk children counter
+			bigfilechildren = bigfilechildren + 1                                     // increments the big file children counter
 		}
-		c[i] = createChunk(buf, n)
-		i = i + 1
+		chunkbuffer[chunkchildren] = createChunkNode(buf, n)
+		chunkchildren = chunkchildren + 1
+		//buf = make([]byte, 1024)
 	}
-	if len(bf) == 0 {
-		if i > 1 {
-			ret := createBigFile(c, i)
+	// Now that we created buffers and counters for both chunks and big files, we need to group the leftover chunks one last time
+	if len(bigfilebuffer) == 0 { // if we have no big file
+		if chunkchildren > 1 { // and several chunks
+			ret := createBigFileNode(chunkbuffer, chunkchildren) // group them under one big file
 			ret.name = filename(filepath)
 			return ret
 		} else {
-			c[0].name = filename(filepath)
-			return c[0]
+			chunkbuffer[0].name = filename(filepath) // otherwise, keep it as is
+			return chunkbuffer[0]
 		}
 	}
 	bf[j-1] = createBigFile(c, i)
