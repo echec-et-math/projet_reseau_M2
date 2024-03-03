@@ -410,7 +410,7 @@ func sendDatum(n Node, con net.Conn) {
 
 func downloadNode(Hash []byte, conn net.Conn) (Node, int) {
 	currentP2PConn.SetReadDeadline(time.Time{})
-	logProgress("Asking for hash : " + string(hex.EncodeToString(Hash)) + "\n envoi de :")
+	logProgress("Asking for hash : " + string(hex.EncodeToString(Hash)))
 	tmp := buildDatumRequest(Hash, 89)
 	conn.Write(requestToByteSlice(tmp))
 	conn.SetReadDeadline(time.Now().Add(5 * time.Second)) // we need the last read to timeout to tell we're actually done with the server
