@@ -83,7 +83,14 @@ func createNode(filepath string) Node {
 			return chunkbuffer[0]
 		}
 	}
-	bf[j-1] = createBigFile(c, i)
+	// in this part, we already have at least one big file : we will need to group them adequately
+	fmt.Printf("Amount of Big Files : %d\n", bigfilechildren)
+	fmt.Printf("Amount of leftover Chunks : %d\n", chunkchildren)
+	//bigfilebuffer[bigfilechildren-1] = createBigFileNode(chunkbuffer, chunkchildren)
+	// this line seems bugged : risk of override on the big file buffer's last element
+	// it is supposed to merge the last remaining chunks into a big file, but by doing so, it replaces the last added big file
+	// the correct way to do it would be append(), but let's test it a bit beforehand
+	bigfilebuffer = append(bigfilebuffer, createBigFileNode(chunkbuffer, chunkchildren)) // testing with append()
 	var bbf []Node
 	for len(bigfilebuffer) > 32 {
 		for a := 0; a < len(bigfilebuffer); a = a + 32 {
