@@ -164,12 +164,17 @@ func readMsgNoSignature(conn net.Conn) []byte {
 		}
 		roothashExchangeDone = true
 		break
+	case 132:
+		// Datum from peer
+		// Do nothing, let downloadNode() handle this
+		return res
 	default:
 		if !helloExchangeDone {
 			communicateError(conn, "Please say hello first + unknown message type", msgtype, msgid)
 			break
 		}
-		communicateError(conn, "Unknown message type.", msgtype, msgid)
+		msgtype_as_nb := fmt.Sprintf("%d", msgtype)
+		communicateError(conn, "Unknown message type for type "+msgtype_as_nb, msgtype, msgid)
 		break
 	}
 	return res
@@ -261,7 +266,7 @@ func readMsgWithSignature(conn net.Conn) []byte {
 		logProgress("Provided roothash")
 		return readMsgWithSignature(conn)
 	case 5:
-		// Datum
+		// GetDatum
 		if !helloExchangeDone {
 			communicateError(conn, "Please say hello first", msgtype, msgid)
 		}
@@ -298,12 +303,17 @@ func readMsgWithSignature(conn net.Conn) []byte {
 		}
 		roothashExchangeDone = true
 		break
+	case 132:
+		// Datum from peer
+		// Do nothing, let downloadNode() handle this
+		return res
 	default:
 		if !helloExchangeDone {
 			communicateError(conn, "Please say hello first + unknown message type", msgtype, msgid)
 			break
 		}
-		communicateError(conn, "Unknown message type.", msgtype, msgid)
+		msgtype_as_nb := fmt.Sprintf("%d", msgtype)
+		communicateError(conn, "Unknown message type for type "+msgtype_as_nb, msgtype, msgid)
 		break
 	}
 	return res
