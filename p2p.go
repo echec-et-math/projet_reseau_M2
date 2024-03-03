@@ -431,10 +431,8 @@ func downloadNode(Hash []byte, conn net.Conn) (Node, int) {
 	nodata := answer[4] == 133
 	if nodata {
 		logProgress("Data not found from peer for hash : " + hex.EncodeToString(answer[7:39]))
-		return createDirectory(""), 7
-
+		return createDirectoryNode(""), 7
 	}
-
 	datatype := answer[39]
 	if debugmode {
 		fmt.Printf("Download Node : found datatype of %d\n", datatype)
@@ -444,16 +442,18 @@ func downloadNode(Hash []byte, conn net.Conn) (Node, int) {
 		fmt.Println(answer[7:39])
 		fmt.Println(Hash)
 		communicateError(conn, "Not the data I asked for", 128, 89) // 0 because we're gonna send it as a message anyway, 89 because that's our constant ID for GetDatums
-		return createDirectory(""), 6
+		return createDirectoryNode(""), 6
 	}
 	if datatype == 0 {
 		//chunk
 		logProgress("un chunk de load")
-		c := createChunk(answer[40:], int(length-32))
+		c := createChunkNode(answer[40:], int(length-32))
 		if compareHash(Hash, c.Hash) {
 			return c, 0
 		} else {
-			return createDirectory(""), 1
+			logProgress("Warning : non-matching hash for our chunk. The data might be corrupted or incomplete.")
+			return c, 0
+			//return createDirectoryNode(""), 1
 		}
 	}
 	if datatype == 1 {
@@ -466,32 +466,30 @@ func downloadNode(Hash []byte, conn net.Conn) (Node, int) {
 
 			tmpc, tmpe := downloadNode(answer[(40+(i*32)):(40+((i+1)*32))], conn)
 			if tmpe != 0 {
-				return createDirectory(""), tmpe
+				return createDirectoryNode(""), tmpe
 			}
-
 			bf = append(bf, tmpc)
 			/*if int(answer[41+((i+1)*32)]) == 0 {
 				break
 			}*/
 		}
-
-		c := createBigFile(bf, len(bf))
+		c := createBigFileNode(bf, len(bf))
 		if compareHash(c.Hash, Hash) {
 			return c, 0
 		} else {
-			return createDirectory(""), 5
+			logProgress("Warning : non-matching hash for our big file. The data might be corrupted or incomplete.")
+			return c, 0
+			//return createDirectoryNode(""), 5
 		}
-
 	}
 	if datatype == 2 {
 		//directory
-		n := createDirectory("")
+		n := createDirectoryNode("")
 		if length == 33 {
 			return n, 0
 		}
 		name := make([]byte, 32)
 		h := make([]byte, 32)
-
 		for i := 0; i < ((int(length) - 32) / 64); i++ {
 			name = answer[40+(i*64) : 72+(i*64)]
 			h = answer[72+(i*64) : 104+(i*64)]
@@ -500,21 +498,21 @@ func downloadNode(Hash []byte, conn net.Conn) (Node, int) {
 			}
 			tmpc, tmpe := downloadNode(h, conn)
 			if tmpe != 0 {
-				return createDirectory(""), tmpe
+				return createDirectoryNode(""), tmpe
 			}
 			tmpc.name = string(name)
 			n = AddChild(n, tmpc)
 		}
-
 		if compareHash(n.Hash, Hash) {
 			return n, 0 //TODO faire un truc qui detecte la vraie longueur des données
 		} else {
-			return createDirectory(""), 3
+			logProgress("Warning : non-matching hash for our directory. The data might be corrupted or incomplete.")
+			return n, 0
+			//return createDirectoryNode(""), 3
 		}
 	}
 	logProgress("ya un blem")
-	return createDirectory(""), 4
-
+	return createDirectoryNode(""), 4
 }
 
 /*
