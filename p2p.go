@@ -49,17 +49,6 @@ type Datum struct {
 	Signature []byte
 }
 
-type Node struct {
-	Directory bool //directory or not
-	Big       bool // a chunk or a big file, if directory is true then we ignore it
-	nbchild   int
-	Parent    *Node
-	Childs    []Node
-	Hash      []byte //the hash of the node
-	Data      []byte
-	name      string //for dir and the root of big file
-}
-
 /*
 	UDP readers
 */
