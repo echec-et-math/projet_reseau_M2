@@ -115,12 +115,11 @@ func createNode(filepath string) Node {
 
 func createChunkNode(content []byte, length int) Node {
 	h := sha256.New()
-	tmpc := []byte{}
-	t := make([]byte, 1)
-	t[0] = 0
-	data := content[0:l]
-	tmpc = append(t, data...)
-	h.Write(tmpc)
+	/* 	tmpc := []byte{}
+	   	t := make([]byte, 1)
+	   	   	t[0] = 0 // Chunk type */
+	data := content[0:length]
+	h.Write(data) // TODO check if hash is computed solely on data or on type + data
 	return Node{
 		Directory: false,
 		Big:       false,
@@ -176,10 +175,9 @@ func AddChild(p Node, c Node) Node {
 			fmt.Println(p.nbchild)
 		}
 		h := sha256.New()
-		s := []byte{}
-		t := make([]byte, 1)
-		t[0] = 2
-		s = append(s, t...)
+		s := make([]byte, 0)
+		/* 		s := make([]byte, 1)
+		   		s[0] = 2 */
 
 		for i := 0; i < p.nbchild; i++ {
 			s = append(s, []byte(p.Childs[i].name)...)
@@ -230,7 +228,7 @@ func WriteFile(current Node) []byte {
 		}
 		return s
 	} else {
-		return current.Data
+		return current.Data[1:] // remove datatype
 	}
 	// return -1 -> unreachable code
 }

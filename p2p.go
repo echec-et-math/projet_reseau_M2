@@ -446,6 +446,7 @@ func downloadNode(Hash []byte, conn net.Conn) (Node, string) {
 	}
 	if datatype == 0 {
 		// Chunk
+		c := createChunkNode(answer[39:], int(length)-32)
 		// The size of the chunk is all the Body field, so the signature is already ignored.
 		// We want to ignore the hash as well : our position at 39 is right for that,
 		// AS WE KEEP THE DATATYPE BYTE IN.
