@@ -80,8 +80,8 @@ func readMsgNoSignature(conn net.Conn) []byte {
 	if err != nil || force_err {
 		log.Fatal(err)
 	}
-	if debugmode {
-		fmt.Println("recus:")
+	if repdisplay {
+		fmt.Println("*** Recus:")
 		fmt.Println("Id: ", res[0:4])
 		fmt.Println("type: ", res[4])
 		fmt.Println("length: ", res[5:7])
@@ -200,8 +200,8 @@ func readMsgWithSignature(conn net.Conn) []byte {
 	if err != nil || force_err {
 		log.Fatal(err)
 	}
-	if debugmode {
-		fmt.Println("recus:")
+	if repdisplay {
+		fmt.Println("*** Recus:")
 		fmt.Println("Id: ", res[0:4])
 		fmt.Println("type: ", res[4])
 		fmt.Println("length: ", res[5:7])

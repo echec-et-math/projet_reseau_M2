@@ -32,8 +32,8 @@ func helloToByteSlice(exchange *HelloExchange) []byte {
 	for i := 0; i < len(exchange.Signature); i++ {
 		res[11+l+i] = exchange.Signature[i]
 	}
-	if debugmode {
-		fmt.Println("affichage du hello envoyé:")
+	if reqdisplay {
+		fmt.Println("*** Hello envoye:")
 		fmt.Println("Id: ", res[0:4])
 		fmt.Println("type: ", res[4])
 		fmt.Println("length: ", res[5:7])
@@ -65,8 +65,8 @@ func datumToByteSlice(datum *Datum) []byte {
 	for i := 0; i < len(datum.Signature); i++ {
 		res[uint16(7)+l+uint16(i)] = datum.Signature[i]
 	}
-	if debugmode {
-		fmt.Println("affichage du datum envoyé:")
+	if reqdisplay {
+		fmt.Println("*** Datum envoye:")
 		fmt.Println("Id: ", res[0:4])
 		fmt.Println("type: ", res[4])
 		fmt.Println("length: ", res[5:7])
@@ -96,8 +96,8 @@ func requestToByteSlice(req *P2PMsg) []byte {
 	for i := 0; i < len(req.Signature); i++ {
 		res[uint16(7)+l+uint16(i)] = req.Signature[i]
 	}
-	if debugmode {
-		fmt.Println("affichage de la requete envoyé :")
+	if reqdisplay {
+		fmt.Println("*** Requete envoyee :")
 		fmt.Println("Id: ", res[0:4])
 		fmt.Println("type: ", res[4])
 		fmt.Println("length: ", res[5:7])
