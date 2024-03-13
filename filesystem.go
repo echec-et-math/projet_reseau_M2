@@ -171,9 +171,6 @@ func AddChild(p Node, c Node) Node {
 		c.Parent = &p
 		p.Childs = append(p.Childs, c)
 		p.nbchild = p.nbchild + 1
-		if debugmode {
-			fmt.Println(p.nbchild)
-		}
 		h := sha256.New()
 		s := make([]byte, 0)
 		/* 		s := make([]byte, 1)
