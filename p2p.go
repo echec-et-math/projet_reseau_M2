@@ -408,7 +408,8 @@ func sendDatum(n Node, con net.Conn) {
 
 }
 
-func downloadNode(Hash []byte, conn net.Conn) (Node, int) {
+func downloadNode(Hash []byte, conn net.Conn) (Node, string) {
+	// TODO rewrite all this connection part
 	currentP2PConn.SetReadDeadline(time.Time{})
 	logProgress("Asking for hash : " + string(hex.EncodeToString(Hash)))
 	tmp := buildDatumRequest(Hash, 89)
@@ -431,29 +432,28 @@ func downloadNode(Hash []byte, conn net.Conn) (Node, int) {
 	nodata := answer[4] == 133
 	if nodata {
 		logProgress("Data not found from peer for hash : " + hex.EncodeToString(answer[7:39]))
-		return createDirectoryNode(""), 7
+		return createDirectoryNode(""), "ERR_NOTFOUND"
 	}
 	datatype := answer[39]
 	if debugmode {
 		fmt.Printf("Download Node : found datatype of %d\n", datatype)
 	}
-	if !(compareHash(Hash, answer[7:39])) && debugmode {
-		fmt.Println("Mismatching hashes :")
-		fmt.Println(answer[7:39])
-		fmt.Println(Hash)
-		communicateError(conn, "Not the data I asked for", 128, 89) // 0 because we're gonna send it as a message anyway, 89 because that's our constant ID for GetDatums
-		return createDirectoryNode(""), 6
+	datahash := answer[7:39]
+	if !(compareHash(Hash, datahash)) {
+		fmt.Printf("Mismatching hashes : asked for %s, got %s\n", datahash, Hash)
+		communicateError(conn, "Not the data I asked for", 128, 89) // 89 because that's our constant ID for GetDatums
+		return createDirectoryNode(""), "ERR_REPLY_HASH_MISMATCH"
 	}
 	if datatype == 0 {
 		//chunk
 		logProgress("un chunk de load")
 		c := createChunkNode(answer[40:], int(length-32))
 		if compareHash(Hash, c.Hash) {
-			return c, 0
+			return c, "SUCCESS"
 		} else {
 			logProgress("Warning : non-matching hash for our chunk. The data might be corrupted or incomplete.")
-			return c, 0
-			//return createDirectoryNode(""), 1
+			fmt.Printf("Expected hash : %s, got node hash : %s\n", string(hex.EncodeToString(Hash)), string(hex.EncodeToString(c.Hash)))
+			return createDirectoryNode(""), "ERR_CHUNK_HASH_MISMATCH"
 		}
 	}
 	if datatype == 1 {
@@ -465,7 +465,7 @@ func downloadNode(Hash []byte, conn net.Conn) (Node, int) {
 		for i := 0; i < ((int(length) - 32) / 32); i++ {
 
 			tmpc, tmpe := downloadNode(answer[(40+(i*32)):(40+((i+1)*32))], conn)
-			if tmpe != 0 {
+			if tmpe != "SUCCESS" {
 				return createDirectoryNode(""), tmpe
 			}
 			bf = append(bf, tmpc)
@@ -475,18 +475,18 @@ func downloadNode(Hash []byte, conn net.Conn) (Node, int) {
 		}
 		c := createBigFileNode(bf, len(bf))
 		if compareHash(c.Hash, Hash) {
-			return c, 0
+			return c, "SUCCESS"
 		} else {
 			logProgress("Warning : non-matching hash for our big file. The data might be corrupted or incomplete.")
-			return c, 0
-			//return createDirectoryNode(""), 5
+			fmt.Printf("Expected hash : %s, got node hash : %s\n", string(hex.EncodeToString(Hash)), string(hex.EncodeToString(c.Hash)))
+			return createDirectoryNode(""), "ERR_TREE_HASH_MISMATCH"
 		}
 	}
 	if datatype == 2 {
 		//directory
 		n := createDirectoryNode("")
 		if length == 33 {
-			return n, 0
+			return n, "SUCCESS"
 		}
 		name := make([]byte, 32)
 		h := make([]byte, 32)
@@ -497,14 +497,14 @@ func downloadNode(Hash []byte, conn net.Conn) (Node, int) {
 				break
 			}
 			tmpc, tmpe := downloadNode(h, conn)
-			if tmpe != 0 {
+			if tmpe != "SUCCESS" {
 				return createDirectoryNode(""), tmpe
 			}
 			tmpc.name = string(name)
 			n = AddChild(n, tmpc)
 		}
 		if compareHash(n.Hash, Hash) {
-			return n, 0 //TODO faire un truc qui detecte la vraie longueur des données
+			return n, "SUCCESS"
 		} else {
 			logProgress("Warning : non-matching hash for our directory. The data might be corrupted or incomplete.")
 			return n, 0
@@ -512,7 +512,7 @@ func downloadNode(Hash []byte, conn net.Conn) (Node, int) {
 		}
 	}
 	logProgress("ya un blem")
-	return createDirectoryNode(""), 4
+	return createDirectoryNode(""), "ERR_UNKNOWN"
 }
 
 /*
