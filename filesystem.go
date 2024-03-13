@@ -139,7 +139,7 @@ func createBigFileNode(children []Node, nb int) Node {
 		Directory: false,
 		Big:       true,
 		nbchild:   nb,
-		Childs:    make([]Node, 32),
+		Childs:    make([]Node, nb),
 	}
 	for i := 0; i < nb; i++ {
 		s = append(s, children[i].Hash...)
@@ -197,7 +197,7 @@ func createDirectoryNode(n string) Node {
 		nbchild:   0,
 		Parent:    nil,
 		name:      n,
-		Childs:    make([]Node, 16),
+		Childs:    make([]Node, 0),
 	}
 }
 
