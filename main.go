@@ -127,9 +127,6 @@ func main() { // CLI Merge from REST and P2P (UDP)
 	for {
 		commandWord := ""
 		secondWord := ""
-		thirdWord := ""
-		fourthWord := ""
-		fifthWord := ""
 		fmt.Print(">")
 		line, err := reader.ReadString('\n')
 		if err != nil || force_err {
@@ -140,16 +137,6 @@ func main() { // CLI Merge from REST and P2P (UDP)
 		commandWord = parts[0]
 		if len(parts) > 1 {
 			secondWord = parts[1]
-			if len(parts) > 2 {
-				thirdWord = parts[2]
-				if len(parts) > 3 {
-					fourthWord = parts[3]
-					if len(parts) > 4 {
-						fifthWord = parts[4]
-					}
-				}
-
-			}
 		}
 		fmt.Println()
 		listPeersFlag = false
@@ -245,8 +232,8 @@ func main() { // CLI Merge from REST and P2P (UDP)
 			} else {
 				logProgress("on vas demander un download")
 				tmp, tmpe := downloadNode(peerroothash, currentP2PConn)
-				if tmpe != 0 {
-					fmt.Printf("Erreur lors du download,  %d \n", tmpe)
+				if tmpe != "SUCCESS" {
+					fmt.Printf("Erreur lors du download, %s\n", tmpe)
 				} else {
 					WriteArbo(tmp, "./testdump")
 				}
@@ -268,8 +255,8 @@ func main() { // CLI Merge from REST and P2P (UDP)
 			break
 		}
 		cli_main(listPeersFlag, helpFlag, exitFlag)
-		if debugmode {
-			fmt.Println("Operation {" + commandWord + " " + secondWord + " " + thirdWord + " " + fourthWord + " " + fifthWord + "} done.")
+		if debugmode && !helpFlag {
+			fmt.Println("Operation " + commandWord + " done.")
 		}
 		fmt.Println()
 	}
