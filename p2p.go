@@ -495,7 +495,7 @@ func downloadNode(Hash []byte, conn net.Conn) (Node, string) {
 		for i := 0; i < ((int(length) - 32) / 64); i++ {
 			name = answer[40+(i*64) : 72+(i*64)] // reads every entry name of the directory
 			h = answer[72+(i*64) : 104+(i*64)]   // reads every sub-hash of these entries
-			if int(h[0]) == 0 {
+			if compareHash(h, emptyStringHash) {
 				break
 			}
 			tmpc, tmpe := downloadNode(h, conn)
