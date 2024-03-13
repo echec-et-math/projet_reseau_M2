@@ -64,52 +64,56 @@ func createNode(filepath string) Node {
 			break // when EOF reached, skip to the next part
 		}
 		if chunkchildren == 32 { // when we have too many chunks, convert them into a single big file
-			bigfilebuffer = append(bigfilebuffer, createBigFileNode(chunkbuffer, 32)) // passes c as an argument, c being our current children chunks
-			chunkchildren = 0                                                         // resets the chunk children counter
-			bigfilechildren = bigfilechildren + 1                                     // increments the big file children counter
+			bigfilebuffer = append(bigfilebuffer, createBigFileNode(chunkbuffer, 32))
+			chunkchildren = 0                     // resets the chunk children counter
+			bigfilechildren = bigfilechildren + 1 // increments the big file children counter
 		}
 		chunkbuffer[chunkchildren] = createChunkNode(buf, n)
 		chunkchildren = chunkchildren + 1
-		//buf = make([]byte, 1024)
 	}
 	// Now that we created buffers and counters for both chunks and big files, we need to group the leftover chunks one last time
-	if len(bigfilebuffer) == 0 { // if we have no big file
+	if bigfilechildren == 0 { // if we have no big file
 		if chunkchildren > 1 { // and several chunks
 			ret := createBigFileNode(chunkbuffer, chunkchildren) // group them under one big file
 			ret.name = filename(filepath)
-			return ret
+			return ret // and directly return it
 		} else {
-			chunkbuffer[0].name = filename(filepath) // otherwise, keep it as is
-			return chunkbuffer[0]
+			chunkbuffer[0].name = filename(filepath) // if we have no big file and only one chunk, keep it as is
+			return chunkbuffer[0]                    // and return this single chunk
 		}
 	}
-	// in this part, we already have at least one big file : we will need to group them adequately
+	// in this part, we already have at least one big file, and possibly some leftover chunks : we will need to group them adequately
 	fmt.Printf("Amount of Big Files : %d\n", bigfilechildren)
 	fmt.Printf("Amount of leftover Chunks : %d\n", chunkchildren)
-	//bigfilebuffer[bigfilechildren-1] = createBigFileNode(chunkbuffer, chunkchildren)
-	// this line seems bugged : risk of override on the big file buffer's last element
-	// it is supposed to merge the last remaining chunks into a big file, but by doing so, it replaces the last added big file
-	// the correct way to do it would be append(), but let's test it a bit beforehand
-	bigfilebuffer = append(bigfilebuffer, createBigFileNode(chunkbuffer, chunkchildren)) // testing with append()
-	var bbf []Node
+	bigfilebuffer = append(bigfilebuffer, createBigFileNode(chunkbuffer, chunkchildren)) // merging leftover chunks into a final big file node
+	/*
+		In this part, we will use conjunctively two buffers to enforce the "32 max children" rule.
+		One will be our bigfilebuffer, re-used.
+		The second one will be our next_depth_buf.
+		We will group the children of bigfilebuffer into a new, next-depth, Node when there are too many.
+		We will then store these next-depth nodes into next_depth_buf.
+		This next_depth_buf will then become our new bigfilebuffer, and so on.
+		We are done when the 32-children cap is no longer broken.
+	*/
+	var next_depth_buf []Node
 	for len(bigfilebuffer) > 32 {
-		for a := 0; a < len(bigfilebuffer); a = a + 32 {
-			bbf = append(bbf, createBigFileNode(chunkbuffer[a:32], 32))
+		for a := 0; a < len(bigfilebuffer); a = a + 32 { // iterates by groups of 32 due to 32 being the children cap
+			next_depth_buf = append(next_depth_buf, createBigFileNode(bigfilebuffer[a:32], 32)) // groups are placed into our next_depth buffer
 		}
-		bigfilebuffer = nil
-		copy(bigfilebuffer, bbf) //copie dans bf bbf
+		bigfilebuffer = nil                 // resets the current array to nil
+		copy(bigfilebuffer, next_depth_buf) // and sets former next-depth buffer as current depth
 	}
-	if len(bigfilebuffer) >= 2 {
+	if len(bigfilebuffer) >= 2 { // big file merger : groups leftover big file nodes
 		ret := createBigFileNode(bigfilebuffer, len(bigfilebuffer))
 		ret.name = filename(filepath)
 		return ret
-	} else {
+	} else { // in case of a single big file remaining, returns it instead
 		bigfilebuffer[0].name = filename(filepath)
 		return bigfilebuffer[0]
 	}
 }
 
-func createChunkNode(content []byte, l int) Node {
+func createChunkNode(content []byte, length int) Node {
 	h := sha256.New()
 	tmpc := []byte{}
 	t := make([]byte, 1)
@@ -126,7 +130,7 @@ func createChunkNode(content []byte, l int) Node {
 	}
 }
 
-func createBigFileNode(ch []Node, nb int) Node {
+func createBigFileNode(children []Node, nb int) Node {
 	s := []byte{}
 	h := sha256.New()
 	t := make([]byte, 1)
@@ -139,8 +143,8 @@ func createBigFileNode(ch []Node, nb int) Node {
 		Childs:    make([]Node, 32),
 	}
 	for i := 0; i < nb; i++ {
-		s = append(s, ch[i].Hash...)
-		n.Childs[i] = ch[i]
+		s = append(s, children[i].Hash...)
+		n.Childs[i] = children[i]
 		n.Childs[i].Parent = &n
 	}
 	h.Write(s)
@@ -166,7 +170,7 @@ ne sert qu'a ajouter des node a un directory, si ce n'est pas un directory ne fa
 func AddChild(p Node, c Node) Node {
 	if p.Directory && p.nbchild < 16 {
 		c.Parent = &p
-		p.Childs[p.nbchild] = c
+		p.Childs = append(p.Childs, c)
 		p.nbchild = p.nbchild + 1
 		if debugmode {
 			fmt.Println(p.nbchild)
@@ -198,7 +202,8 @@ func createDirectoryNode(n string) Node {
 		Childs:    make([]Node, 16),
 	}
 }
-func PrintTree(r Node, pre string) {
+
+/* func PrintTree(r Node, pre string) {
 	if r.Directory {
 		for i := 0; i < r.nbchild; i++ {
 			PrintTree(r.Childs[i], pre+"  ")
@@ -216,12 +221,12 @@ func PrintTree(r Node, pre string) {
 			fmt.Println(pre + "chunk")
 		}
 	}
-}
+} */
 func WriteFile(current Node) []byte {
 	if current.Big {
 		s := []byte{}
 		for i := 0; i < current.nbchild; i++ {
-			s = append(s, current.Childs[i].Data...)
+			s = append(s, WriteFile(current.Childs[i])...)
 		}
 		return s
 	} else {
