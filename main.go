@@ -52,7 +52,9 @@ var peerHasFiles = false
 var issuedTraversal = false
 
 var debugmode = false
-var force_err = false // this forces error-handling routines to happen, even if nothing failed
+var force_err = false  // this forces error-handling routines to happen, even if nothing failed
+var reqdisplay = false // display detailed content for sent requests
+var repdisplay = false // display detailed content for received replies
 
 var client *http.Client
 
@@ -249,6 +251,18 @@ func main() { // CLI Merge from REST and P2P (UDP)
 					WriteArbo(tmp, "./testdump")
 				}
 			}
+		case "repon":
+			repdisplay = true
+			break
+		case "repoff":
+			repdisplay = false
+			break
+		case "reqon":
+			reqdisplay = true
+			break
+		case "reqoff":
+			reqdisplay = false
+			break
 		default:
 			helpFlag = true
 			break

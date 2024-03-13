@@ -32,6 +32,10 @@ func cli_main(listPeersFlag bool, helpFlag bool, exitFlag bool) {
 		fmt.Println("importKey : imports the private key from an external file, takes it as out private key, computes the associated public key, and assigns it as out public key.")
 		fmt.Println("list : fetches and displays a list of known peers from the server.")
 		fmt.Println("register : registers ourself to the REST server.")
+		fmt.Println("repon : details content for replies (disabled by default)")
+		fmt.Println("repoff : disables detailed content for replies (disabled by default)")
+		fmt.Println("reqon : details content for requests (disabled by default)")
+		fmt.Println("reqoff : disables detailed content for requests (disabled by default)")
 		fmt.Println("setName [name] : changes your name as seen by the REST server.")
 		return
 	}
